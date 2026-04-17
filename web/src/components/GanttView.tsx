@@ -26,6 +26,9 @@ function toFrappeTasks(rows: GanttRow[], groupBy: Props['groupBy']): FrappeTask[
     if (groupCmp !== 0) return groupCmp;
     return (a.start ?? '').localeCompare(b.start ?? '');
   });
+  const visibleIds = new Set(
+    sorted.filter((r) => r.start && r.end).map((r) => r.id),
+  );
   return sorted
     .filter((r): r is GanttRow & { start: string; end: string } => !!r.start && !!r.end)
     .map((r) => ({
@@ -35,6 +38,7 @@ function toFrappeTasks(rows: GanttRow[], groupBy: Props['groupBy']): FrappeTask[
       end: r.end,
       progress: r.state === 'DONE' ? 100 : 0,
       custom_class: r.state === 'DONE' ? 'bar-done' : 'bar-todo',
+      dependencies: r.dependsOn.filter((d) => visibleIds.has(d)).join(','),
     }));
 }
 

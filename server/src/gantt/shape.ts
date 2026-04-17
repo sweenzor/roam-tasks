@@ -1,4 +1,5 @@
 import { detectState, extractDates } from './extract.js';
+import { dedupeEdges, extractEdges, filterToScope } from './deps.js';
 import { cleanTitle } from './titleClean.js';
 import type { GanttRow, RoamBlockPull, TagScope, TasksResponse } from '../types.js';
 
@@ -35,6 +36,7 @@ export function shapeBlocks(
 ): TasksResponse {
   const rows: GanttRow[] = [];
   const unscheduled: GanttRow[] = [];
+  const rawEdges = blocks.flatMap(extractEdges);
 
   for (const block of blocks) {
     const tags = matchedTags(block, scope);
@@ -55,11 +57,23 @@ export function shapeBlocks(
       page: block[':block/page']?.[':node/title'] ?? '',
       parentUid: block[':block/parents']?.slice(-1)[0]?.[':block/uid'] ?? null,
       source,
+      dependsOn: [],
     };
 
     if (source === 'none') unscheduled.push(row);
     else rows.push(row);
   }
+
+  const keptIds = new Set<string>([...rows, ...unscheduled].map((r) => r.id));
+  const edges = filterToScope(dedupeEdges(rawEdges), keptIds);
+  const incoming = new Map<string, string[]>();
+  for (const e of edges) {
+    const list = incoming.get(e.to) ?? [];
+    if (!list.includes(e.from)) list.push(e.from);
+    incoming.set(e.to, list);
+  }
+  for (const r of rows) r.dependsOn = incoming.get(r.id) ?? [];
+  for (const r of unscheduled) r.dependsOn = incoming.get(r.id) ?? [];
 
   rows.sort((a, b) => (a.start ?? '').localeCompare(b.start ?? ''));
   unscheduled.sort((a, b) => a.title.localeCompare(b.title));

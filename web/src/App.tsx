@@ -90,8 +90,10 @@ export default function App() {
       {selected && (
         <TaskDetail
           row={selected}
+          allRows={[...data.rows, ...data.unscheduled]}
           graph={config.graph}
           onClose={() => setSelected(null)}
+          onSelect={setSelected}
           onToggle={(next) =>
             toggleMutation.mutate(
               { uid: selected.id, next },

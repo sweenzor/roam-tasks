@@ -3,14 +3,28 @@ import type { GanttRow } from '../types';
 
 type Props = {
   row: GanttRow;
+  allRows: GanttRow[];
   graph: string;
   onClose: () => void;
+  onSelect: (row: GanttRow) => void;
   onToggle: (next: 'TODO' | 'DONE') => void;
   isToggling: boolean;
 };
 
-export function TaskDetail({ row, graph, onClose, onToggle, isToggling }: Props) {
+function useRelatedRows(row: GanttRow, allRows: GanttRow[]) {
+  const byId = new Map(allRows.map((r) => [r.id, r]));
+  const blockedBy = row.dependsOn
+    .map((id) => byId.get(id))
+    .filter((r): r is GanttRow => !!r);
+  const blocks = allRows.filter((r) => r.dependsOn.includes(row.id));
+  return { blockedBy, blocks };
+}
+
+export function TaskDetail({
+  row, allRows, graph, onClose, onSelect, onToggle, isToggling,
+}: Props) {
   const nextState: 'TODO' | 'DONE' = row.state === 'DONE' ? 'TODO' : 'DONE';
+  const { blockedBy, blocks } = useRelatedRows(row, allRows);
   return (
     <aside className="task-detail">
       <header>
@@ -31,6 +45,8 @@ export function TaskDetail({ row, graph, onClose, onToggle, isToggling }: Props)
         <dt>Page</dt>
         <dd>{row.page}</dd>
       </dl>
+      <RelatedList label="Blocked by" rows={blockedBy} onSelect={onSelect} />
+      <RelatedList label="Blocks" rows={blocks} onSelect={onSelect} />
       <div className="actions">
         <button
           type="button"
@@ -44,5 +60,28 @@ export function TaskDetail({ row, graph, onClose, onToggle, isToggling }: Props)
         </a>
       </div>
     </aside>
+  );
+}
+
+function RelatedList({
+  label, rows, onSelect,
+}: { label: string; rows: GanttRow[]; onSelect: (r: GanttRow) => void }) {
+  if (rows.length === 0) return null;
+  return (
+    <section className="related">
+      <h4>{label}</h4>
+      <ul>
+        {rows.map((r) => (
+          <li key={r.id}>
+            <button type="button" onClick={() => onSelect(r)}>
+              <span className={r.state === 'DONE' ? 'state done' : 'state todo'}>
+                {r.state ?? '—'}
+              </span>
+              <span className="title">{r.title}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

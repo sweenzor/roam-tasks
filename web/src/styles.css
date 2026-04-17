@@ -157,6 +157,29 @@ body {
 }
 .task-detail dt { color: var(--muted); }
 .task-detail dd { margin: 0; }
+.task-detail .related { margin: 0 0 12px; }
+.task-detail .related h4 { margin: 0 0 4px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.task-detail .related ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.task-detail .related button {
+  display: grid;
+  grid-template-columns: 46px 1fr;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 12px;
+}
+.task-detail .related button:hover { background: #2c2c37; }
+.task-detail .related .state { font-size: 10px; padding: 1px 6px; border-radius: 10px; font-weight: 600; text-align: center; }
+.task-detail .related .state.done { background: rgba(63, 168, 100, 0.2); color: var(--done); }
+.task-detail .related .state.todo { background: rgba(90, 130, 255, 0.2); color: var(--todo); }
+
 .task-detail .actions { display: flex; gap: 8px; align-items: center; }
 .task-detail .actions button {
   background: var(--accent); color: white; border: 0; border-radius: 4px; padding: 6px 12px; cursor: pointer; font-weight: 600;

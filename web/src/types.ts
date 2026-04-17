@@ -12,6 +12,7 @@ export type GanttRow = {
   page: string;
   parentUid: string | null;
   source: DateSource;
+  dependsOn: string[];
 };
 
 export type TasksResponse = {

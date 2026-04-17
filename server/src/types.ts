@@ -12,6 +12,7 @@ export type GanttRow = {
   page: string;
   parentUid: string | null;
   source: DateSource;
+  dependsOn: string[]; // UIDs of blocker rows — must finish before this row can start
 };
 
 export type TasksResponse = {
@@ -21,6 +22,8 @@ export type TasksResponse = {
 
 export type RoamRef = { ':node/title'?: string; ':block/uid'?: string };
 export type RoamChild = { ':block/string': string; ':block/refs'?: RoamRef[] };
+
+export type DepEdge = { from: string; to: string }; // blocker → blockee
 export type RoamPage = { ':node/title': string };
 export type RoamParent = { ':block/uid': string };
 

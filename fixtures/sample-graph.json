@@ -28,6 +28,10 @@
         {
           ":block/string": "end:: [[April 10th, 2026]]",
           ":block/refs": [{ ":node/title": "April 10th, 2026" }]
+        },
+        {
+          ":block/string": "blocks:: ((blk-inline-two))",
+          ":block/refs": [{ ":block/uid": "blk-inline-two" }]
         }
       ],
       ":block/page": { ":node/title": "proj/alpha" },
@@ -68,6 +72,12 @@
         { ":node/title": "TODO" },
         { ":node/title": "April 17th, 2026" },
         { ":node/title": "proj/beta" }
+      ],
+      ":block/children": [
+        {
+          ":block/string": "blocked-by:: ((blk-due-only))",
+          ":block/refs": [{ ":block/uid": "blk-due-only" }]
+        }
       ],
       ":block/page": { ":node/title": "proj/beta" },
       ":block/parents": [{ ":block/uid": "root-beta" }]
