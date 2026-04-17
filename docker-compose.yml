@@ -8,10 +8,10 @@ services:
       ROAM_API_URL: ${ROAM_API_URL}
       ROAM_GRAPH: ${ROAM_GRAPH}
       ROAM_TOKEN: ${ROAM_TOKEN}
-      PORT: ${SERVER_PORT:-3001}
+      PORT: 3001
       FIXTURE_PATH: ${FIXTURE_PATH:-}
     ports:
-      - "${SERVER_PORT:-3001}:3001"
+      - "${SERVER_PORT:-5758}:3001"
     volumes:
       - ./server:/app
       - ./fixtures:/app/fixtures:ro
@@ -25,7 +25,7 @@ services:
       target: dev
     command: npm run dev -- --host 0.0.0.0
     ports:
-      - "${WEB_PORT:-3000}:3000"
+      - "${WEB_PORT:-5757}:3000"
     volumes:
       - ./web:/app
       - /app/node_modules

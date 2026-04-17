@@ -18,7 +18,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Then open <http://localhost:3000>.
+Then open <http://localhost:5757>.
 
 Enter a prefix (e.g. `proj/`) or a csv tag list. Every TODO block referencing any matching tag page shows up in the chart.
 
@@ -31,8 +31,8 @@ Enter a prefix (e.g. `proj/`) or a csv tag list. Every TODO block referencing an
 | `ROAM_API_URL` | `http://host.docker.internal:8088`   | Where Roam Desktop is listening.                     |
 | `ROAM_GRAPH`   | `my-graph`                           | Graph name (as it appears in the Roam URL).         |
 | `ROAM_TOKEN`   | `roam-graph-local-...`               | Local-API token from Roam Desktop settings.          |
-| `SERVER_PORT`  | `3001`                               | Fastify port, exposed to the host.                   |
-| `WEB_PORT`     | `3000`                               | Vite/nginx port, exposed to the host.                |
+| `SERVER_PORT`  | `5758`                               | Host-side port forwarded to the Fastify container (internally :3001). |
+| `WEB_PORT`     | `5757`                               | Host-side port forwarded to the Vite/nginx container (internally :3000). |
 | `FIXTURE_PATH` | `/app/fixtures/sample-graph.json`    | **Dev only.** If set, the server ignores Roam and reads a committed fixture. Unset for production use. |
 
 On Linux hosts, `host.docker.internal` is mapped via `extra_hosts: host-gateway` in `docker-compose.yml` (already configured). As a fallback, switch the `server` service to `network_mode: host`.
