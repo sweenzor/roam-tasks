@@ -1,3 +1,4 @@
+import { DONE_MARK, TODO_MARK } from './markers.js';
 import { parseDate } from './parseDate.js';
 import type { DateSource, RoamBlockPull } from '../types.js';
 
@@ -76,8 +77,7 @@ export function detectState(block: RoamBlockPull): 'TODO' | 'DONE' | null {
   for (const r of refs) {
     if (r[':node/title'] === 'TODO') return 'TODO';
   }
-  // fallback: inspect the string marker
-  if (block[':block/string'].includes('{{[[DONE]]}}')) return 'DONE';
-  if (block[':block/string'].includes('{{[[TODO]]}}')) return 'TODO';
+  if (block[':block/string'].includes(DONE_MARK)) return 'DONE';
+  if (block[':block/string'].includes(TODO_MARK)) return 'TODO';
   return null;
 }

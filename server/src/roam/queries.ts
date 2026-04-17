@@ -8,7 +8,7 @@ export const RESOLVE_TAG_PAGES_Q = `
 `;
 
 export const FETCH_TAGGED_BLOCKS_Q = `
-[:find (pull ?b [:block/uid :block/string :create/time :edit/time
+[:find (pull ?b [:block/uid :block/string
                  {:block/refs [:node/title :block/uid]}
                  {:block/children [:block/string {:block/refs [:node/title :block/uid]}]}
                  {:block/page [:node/title]}

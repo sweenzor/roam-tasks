@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { DONE_MARK, TODO_MARK } from '../gantt/markers.js';
 import type { RoamBlockPull, TagScope } from '../types.js';
 
 type FixtureGraph = {
@@ -37,6 +38,14 @@ export async function fixtureFetchBlocks(
   );
 }
 
+export async function fixtureGetBlock(
+  path: string,
+  uid: string,
+): Promise<RoamBlockPull | null> {
+  const { blocks } = await load(path);
+  return blocks.find((b) => b[':block/uid'] === uid) ?? null;
+}
+
 export async function fixtureRewriteBlockString(
   path: string,
   uid: string,
@@ -46,12 +55,12 @@ export async function fixtureRewriteBlockString(
   const block = graph.blocks.find((b) => b[':block/uid'] === uid);
   if (!block) return null;
   block[':block/string'] = nextString;
-  // refresh TODO/DONE ref to match the rewritten marker
+  // refresh TODO/DONE ref to match the rewritten marker so state detection stays in sync
   const refs = (block[':block/refs'] ?? []).filter(
     (r) => r[':node/title'] !== 'TODO' && r[':node/title'] !== 'DONE',
   );
-  if (nextString.includes('{{[[DONE]]}}')) refs.push({ ':node/title': 'DONE' });
-  else if (nextString.includes('{{[[TODO]]}}')) refs.push({ ':node/title': 'TODO' });
+  if (nextString.includes(DONE_MARK)) refs.push({ ':node/title': 'DONE' });
+  else if (nextString.includes(TODO_MARK)) refs.push({ ':node/title': 'TODO' });
   block[':block/refs'] = refs;
   return block;
 }

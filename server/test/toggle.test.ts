@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rewriteMarker } from '../src/routes/toggle.js';
+import { rewriteMarker } from '../src/gantt/markers.js';
 
 describe('rewriteMarker', () => {
   it('TODO → DONE replaces marker', () => {

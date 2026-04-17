@@ -19,7 +19,6 @@ function matchedTags(block: RoamBlockPull, scope: TagScope): string[] {
 }
 
 function pickPrimary(tags: string[], scope: TagScope): string {
-  // priority: first tag in scope.tags that matches, then first prefix match
   for (const exact of scope.tags) {
     if (tags.includes(exact)) return exact;
   }

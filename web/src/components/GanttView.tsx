@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import Gantt from 'frappe-gantt';
+import Gantt, { type FrappeTask } from 'frappe-gantt';
 import type { GanttRow, TaskQuery } from '../types';
 
 type Props = {
@@ -9,16 +9,6 @@ type Props = {
 };
 
 type Mode = 'Day' | 'Week' | 'Month';
-
-type FrappeTask = {
-  id: string;
-  name: string;
-  start: string;
-  end: string;
-  progress: number;
-  custom_class?: string;
-  dependencies?: string;
-};
 
 function toFrappeTasks(rows: GanttRow[], groupBy: Props['groupBy']): FrappeTask[] {
   const sorted = [...rows].sort((a, b) => {
@@ -55,28 +45,47 @@ function labelFor(r: GanttRow, groupBy: Props['groupBy']): string {
 
 export function GanttView({ rows, groupBy, onSelect }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
-  const ganttRef = useRef<any>(null);
+  const ganttRef = useRef<Gantt | null>(null);
+  const onSelectRef = useRef(onSelect);
+  const rowsRef = useRef(rows);
   const [mode, setMode] = useState<Mode>('Week');
+
+  onSelectRef.current = onSelect;
+  rowsRef.current = rows;
 
   const tasks = useMemo(() => toFrappeTasks(rows, groupBy), [rows, groupBy]);
 
+  // Rebuild only when mode changes (frappe-gantt can't switch mode on an existing instance
+  // cleanly via a non-imperative API — `.refresh(tasks)` handles data updates).
   useEffect(() => {
-    if (!ref.current) return;
-    ref.current.innerHTML = '';
-    if (tasks.length === 0) {
+    const host = ref.current;
+    if (!host || tasks.length === 0) {
       ganttRef.current = null;
       return;
     }
-    ganttRef.current = new Gantt(ref.current, tasks, {
+    host.innerHTML = '';
+    ganttRef.current = new Gantt(host, tasks, {
       view_mode: mode,
       bar_height: 24,
       padding: 14,
       on_click: (t: { id: string }) => {
-        const row = rows.find((r) => r.id === t.id);
-        if (row) onSelect(row);
+        const row = rowsRef.current.find((r) => r.id === t.id);
+        if (row) onSelectRef.current(row);
       },
     });
-  }, [tasks, mode, rows, onSelect]);
+    return () => {
+      if (host) host.innerHTML = '';
+      ganttRef.current = null;
+    };
+    // `tasks` is intentionally excluded — data updates go through the effect below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, tasks.length === 0]);
+
+  useEffect(() => {
+    if (ganttRef.current && tasks.length > 0) {
+      ganttRef.current.refresh(tasks);
+    }
+  }, [tasks]);
 
   return (
     <div className="gantt-view">
