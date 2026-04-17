@@ -65,7 +65,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>roam-gantt</h1>
+        <h1>Roam Gantt</h1>
       </header>
       <ConfigPanel
         config={config}
