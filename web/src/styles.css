@@ -1,0 +1,165 @@
+:root {
+  --bg: #1a1a1f;
+  --panel: #23232c;
+  --border: #3a3a44;
+  --text: #ececf2;
+  --muted: #9da0ac;
+  --accent: #5a82ff;
+  --todo: #5a82ff;
+  --done: #3fa864;
+  --error: #ff6b6b;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.app {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  grid-template-rows: auto auto auto 1fr;
+  gap: 12px;
+  padding: 16px;
+  min-height: 100vh;
+}
+
+.app-header { grid-column: 1 / -1; }
+.app-header h1 { margin: 0; font-size: 18px; }
+
+.config-panel {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  align-items: end;
+}
+.config-panel label {
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+  color: var(--muted);
+  gap: 4px;
+}
+.config-panel label.checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  padding-bottom: 6px;
+}
+.config-panel input[type="text"],
+.config-panel select {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  min-width: 180px;
+}
+.config-panel button {
+  background: var(--accent);
+  color: white;
+  border: 0;
+  border-radius: 4px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.config-panel button:disabled { opacity: 0.6; cursor: progress; }
+
+.hint, .error { grid-column: 1 / -1; padding: 8px 12px; }
+.error { color: var(--error); }
+
+.unscheduled-lane {
+  grid-column: 1 / -1;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+.unscheduled-lane header {
+  display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px;
+}
+.unscheduled-lane h2 { font-size: 13px; margin: 0; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.unscheduled-lane .count { font-size: 12px; color: var(--muted); background: #33333d; padding: 1px 8px; border-radius: 10px; }
+.unscheduled-lane ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.unscheduled-lane button {
+  display: grid;
+  grid-template-columns: 140px 1fr 180px;
+  gap: 10px;
+  text-align: left;
+  background: transparent;
+  color: var(--text);
+  border: 0;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  width: 100%;
+}
+.unscheduled-lane button:hover { background: #2c2c37; }
+.unscheduled-lane .tag { color: var(--accent); font-family: ui-monospace, monospace; font-size: 12px; }
+.unscheduled-lane .page { color: var(--muted); font-size: 12px; text-align: right; }
+.unscheduled-lane .empty { color: var(--muted); margin: 0; }
+
+.gantt-view {
+  grid-column: 1 / 2;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  min-height: 400px;
+}
+.gantt-controls { display: flex; gap: 6px; margin-bottom: 8px; }
+.gantt-controls button {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.gantt-controls button.active { background: var(--accent); color: white; border-color: var(--accent); }
+.gantt-canvas { overflow: auto; }
+.gantt-view .empty { color: var(--muted); padding: 40px 0; text-align: center; }
+
+.bar-done .bar { fill: var(--done) !important; }
+.bar-todo .bar { fill: var(--todo) !important; }
+
+.task-detail {
+  grid-column: 2 / 3;
+  grid-row: 4 / 5;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  height: max-content;
+  position: sticky;
+  top: 12px;
+}
+.task-detail header {
+  display: flex; align-items: start; justify-content: space-between; gap: 10px; margin-bottom: 10px;
+}
+.task-detail h3 { margin: 0; font-size: 15px; }
+.task-detail header button {
+  background: transparent; color: var(--muted); border: 0; font-size: 22px; cursor: pointer; line-height: 1;
+}
+.task-detail dl {
+  display: grid; grid-template-columns: 60px 1fr; gap: 2px 10px; margin: 0 0 12px; font-size: 12px;
+}
+.task-detail dt { color: var(--muted); }
+.task-detail dd { margin: 0; }
+.task-detail .actions { display: flex; gap: 8px; align-items: center; }
+.task-detail .actions button {
+  background: var(--accent); color: white; border: 0; border-radius: 4px; padding: 6px 12px; cursor: pointer; font-weight: 600;
+}
+.task-detail .actions button:disabled { opacity: 0.6; cursor: progress; }
+.task-detail .actions a { color: var(--accent); text-decoration: none; font-size: 12px; }

@@ -1,0 +1,132 @@
+{
+  "pages": [
+    { ":node/title": "proj/alpha", ":block/uid": "tag-alpha" },
+    { ":node/title": "proj/beta", ":block/uid": "tag-beta" },
+    { ":node/title": "proj/alpha/frontend", ":block/uid": "tag-alpha-fe" },
+    { ":node/title": "design-review", ":block/uid": "tag-dr" },
+    { ":node/title": "TODO", ":block/uid": "tag-todo" },
+    { ":node/title": "DONE", ":block/uid": "tag-done" },
+    { ":node/title": "April 1st, 2026", ":block/uid": "dn-apr01" },
+    { ":node/title": "April 5th, 2026", ":block/uid": "dn-apr05" },
+    { ":node/title": "April 10th, 2026", ":block/uid": "dn-apr10" },
+    { ":node/title": "April 17th, 2026", ":block/uid": "dn-apr17" },
+    { ":node/title": "April 20th, 2026", ":block/uid": "dn-apr20" }
+  ],
+  "blocks": [
+    {
+      ":block/uid": "blk-attrs-range",
+      ":block/string": "{{[[TODO]]}} Ship alpha build #proj/alpha",
+      ":block/refs": [
+        { ":node/title": "TODO" },
+        { ":node/title": "proj/alpha" }
+      ],
+      ":block/children": [
+        {
+          ":block/string": "start:: [[April 1st, 2026]]",
+          ":block/refs": [{ ":node/title": "April 1st, 2026" }]
+        },
+        {
+          ":block/string": "end:: [[April 10th, 2026]]",
+          ":block/refs": [{ ":node/title": "April 10th, 2026" }]
+        }
+      ],
+      ":block/page": { ":node/title": "proj/alpha" },
+      ":block/parents": [{ ":block/uid": "root-alpha" }]
+    },
+    {
+      ":block/uid": "blk-due-only",
+      ":block/string": "{{[[TODO]]}} File taxes #proj/alpha",
+      ":block/refs": [
+        { ":node/title": "TODO" },
+        { ":node/title": "proj/alpha" }
+      ],
+      ":block/children": [
+        {
+          ":block/string": "due:: [[April 5th, 2026]]",
+          ":block/refs": [{ ":node/title": "April 5th, 2026" }]
+        }
+      ],
+      ":block/page": { ":node/title": "proj/alpha" },
+      ":block/parents": [{ ":block/uid": "root-alpha" }]
+    },
+    {
+      ":block/uid": "blk-inline-two",
+      ":block/string": "{{[[TODO]]}} Design sprint from [[April 10th, 2026]] to [[April 20th, 2026]] #proj/beta",
+      ":block/refs": [
+        { ":node/title": "TODO" },
+        { ":node/title": "April 10th, 2026" },
+        { ":node/title": "April 20th, 2026" },
+        { ":node/title": "proj/beta" }
+      ],
+      ":block/page": { ":node/title": "proj/beta" },
+      ":block/parents": [{ ":block/uid": "root-beta" }]
+    },
+    {
+      ":block/uid": "blk-inline-one",
+      ":block/string": "{{[[TODO]]}} Send weekly on [[April 17th, 2026]] #proj/beta",
+      ":block/refs": [
+        { ":node/title": "TODO" },
+        { ":node/title": "April 17th, 2026" },
+        { ":node/title": "proj/beta" }
+      ],
+      ":block/page": { ":node/title": "proj/beta" },
+      ":block/parents": [{ ":block/uid": "root-beta" }]
+    },
+    {
+      ":block/uid": "blk-daily-note",
+      ":block/string": "{{[[TODO]]}} Morning standup #proj/alpha/frontend",
+      ":block/refs": [
+        { ":node/title": "TODO" },
+        { ":node/title": "proj/alpha/frontend" }
+      ],
+      ":block/page": { ":node/title": "April 17th, 2026" },
+      ":block/parents": [{ ":block/uid": "root-dn" }]
+    },
+    {
+      ":block/uid": "blk-done",
+      ":block/string": "{{[[DONE]]}} Kickoff call #proj/alpha",
+      ":block/refs": [
+        { ":node/title": "DONE" },
+        { ":node/title": "proj/alpha" }
+      ],
+      ":block/children": [
+        {
+          ":block/string": "due:: [[April 1st, 2026]]",
+          ":block/refs": [{ ":node/title": "April 1st, 2026" }]
+        }
+      ],
+      ":block/page": { ":node/title": "proj/alpha" },
+      ":block/parents": [{ ":block/uid": "root-alpha" }]
+    },
+    {
+      ":block/uid": "blk-unscheduled",
+      ":block/string": "{{[[TODO]]}} Figure out retention metric #proj/beta",
+      ":block/refs": [
+        { ":node/title": "TODO" },
+        { ":node/title": "proj/beta" }
+      ],
+      ":block/page": { ":node/title": "proj/beta" },
+      ":block/parents": [{ ":block/uid": "root-beta" }]
+    },
+    {
+      ":block/uid": "blk-design-review",
+      ":block/string": "{{[[TODO]]}} Review Figma #design-review",
+      ":block/refs": [
+        { ":node/title": "TODO" },
+        { ":node/title": "design-review" }
+      ],
+      ":block/children": [
+        {
+          ":block/string": "start:: [[April 5th, 2026]]",
+          ":block/refs": [{ ":node/title": "April 5th, 2026" }]
+        },
+        {
+          ":block/string": "end:: [[April 10th, 2026]]",
+          ":block/refs": [{ ":node/title": "April 10th, 2026" }]
+        }
+      ],
+      ":block/page": { ":node/title": "design-review" },
+      ":block/parents": [{ ":block/uid": "root-dr" }]
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "roam-gantt",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Gantt chart frontend for Roam Research, driven by the local HTTP API.",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev": "docker compose up",
+    "build": "docker compose build",
+    "test": "docker compose run --rm server npm test"
+  }
+}

@@ -1,0 +1,33 @@
+services:
+  server:
+    build:
+      context: ./server
+      target: dev
+    command: npm run dev
+    environment:
+      ROAM_API_URL: ${ROAM_API_URL}
+      ROAM_GRAPH: ${ROAM_GRAPH}
+      ROAM_TOKEN: ${ROAM_TOKEN}
+      PORT: ${SERVER_PORT:-3001}
+      FIXTURE_PATH: ${FIXTURE_PATH:-}
+    ports:
+      - "${SERVER_PORT:-3001}:3001"
+    volumes:
+      - ./server:/app
+      - ./fixtures:/app/fixtures:ro
+      - /app/node_modules
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  web:
+    build:
+      context: ./web
+      target: dev
+    command: npm run dev -- --host 0.0.0.0
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+    depends_on:
+      - server
