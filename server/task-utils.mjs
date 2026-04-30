@@ -200,7 +200,7 @@ export function formatRoamDailyDate(date = new Date()) {
 
 function compareTasks(a, b) {
   if (a.done !== b.done) return a.done ? 1 : -1;
-  if (a.dueDate && b.dueDate && a.dueDate !== b.dueDate) return a.dueDate.localeCompare(b.dueDate);
+  if (a.dueDate && b.dueDate && a.dueDate !== b.dueDate) return b.dueDate.localeCompare(a.dueDate);
   if (a.dueDate && !b.dueDate) return -1;
   if (!a.dueDate && b.dueDate) return 1;
   if (a.priority && b.priority && a.priority !== b.priority) return a.priority - b.priority;

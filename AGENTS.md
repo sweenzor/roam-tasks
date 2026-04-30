@@ -18,6 +18,7 @@ Prefer the official Roam Desktop Local API shape used by `Roam-Research/roam-too
 
 - Default local API port: `3333`, or read `~/.roam-local-api.json`.
 - Default local API host: `127.0.0.1`, or `host.docker.internal` in Docker.
+- Default graph can be selected with `ROAM_DEFAULT_GRAPH`, matching either graph nickname or graph name.
 - Graph/token config: `~/.roam-tools.json`, with optional environment fallback from `.env.example`.
 - Request route: `POST http://127.0.0.1:<port>/api/<graph>`.
 - Auth: `Authorization: Bearer <roam-graph-local-token-...>`.

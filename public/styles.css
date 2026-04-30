@@ -119,8 +119,7 @@ input:disabled {
   gap: 6px;
 }
 
-.view-button,
-.toggle-row {
+.view-button {
   min-height: 42px;
   border-radius: 8px;
 }
@@ -147,14 +146,6 @@ input:disabled {
 
 .view-button strong {
   font-size: 0.84rem;
-}
-
-.toggle-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--muted);
-  font-size: 0.92rem;
 }
 
 .workspace {

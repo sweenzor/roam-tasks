@@ -18,6 +18,7 @@ const publicDir = join(rootDir, "public");
 const appPort = Number(process.env.PORT) || 5174;
 const listenHost = process.env.HOST || "127.0.0.1";
 const roamApiHost = process.env.ROAM_LOCAL_API_HOST || "127.0.0.1";
+const defaultGraphKey = process.env.ROAM_DEFAULT_GRAPH;
 const expectedApiVersion = "1.1.2";
 
 const taskQuery = `[:find ?uid ?string ?page-title
@@ -69,9 +70,10 @@ server.listen(appPort, listenHost, () => {
 async function handleApi(request, response, url) {
   if (request.method === "GET" && url.pathname === "/api/graphs") {
     const graphs = await getConfiguredGraphs();
+    const selectedGraph = selectDefaultGraph(graphs);
     sendJson(response, 200, {
       graphs: graphs.map(sanitizeGraph),
-      selectedGraph: graphs[0]?.nickname ?? graphs[0]?.name ?? null,
+      selectedGraph: selectedGraph?.nickname ?? selectedGraph?.name ?? null,
       port: await getRoamPort(),
       roamApiHost
     });
@@ -92,7 +94,7 @@ async function handleApi(request, response, url) {
 
   if (request.method === "GET" && url.pathname === "/api/tasks") {
     const graph = await resolveGraph(url.searchParams.get("graph"));
-    const includeDone = url.searchParams.get("includeDone") === "true";
+    const includeDone = url.searchParams.get("includeDone") !== "false";
     const rows = await readTaskRows(graph, includeDone);
     sendJson(response, 200, {
       tasks: normalizeTasks(rows),
@@ -269,11 +271,20 @@ async function resolveGraph(key) {
   }
 
   if (!key && graphs.length === 1) return graphs[0];
-  if (!key) return graphs[0];
+  if (!key) return selectDefaultGraph(graphs);
 
   const graph = graphs.find((candidate) => candidate.nickname === key || candidate.name === key);
   if (!graph) throw notFound(`No configured Roam graph matched "${key}".`);
   return graph;
+}
+
+function selectDefaultGraph(graphs) {
+  if (!graphs.length) return null;
+  if (!defaultGraphKey) return graphs[0];
+  return (
+    graphs.find((candidate) => candidate.nickname === defaultGraphKey || candidate.name === defaultGraphKey) ||
+    graphs[0]
+  );
 }
 
 function readEnvGraph() {

@@ -49,6 +49,8 @@ Then open `http://localhost:5174`.
 
 The compose file mounts `~/.roam-tools.json` and `~/.roam-local-api.json` read-only into the container and sets `ROAM_LOCAL_API_HOST=host.docker.internal` so the container can reach Roam Desktop on the host.
 
+This repository's compose file also sets `ROAM_DEFAULT_GRAPH=personal-graph`, so the app opens on the personal graph by default.
+
 ## Task Format
 
 Roam tasks are blocks containing Roam's TODO marker:

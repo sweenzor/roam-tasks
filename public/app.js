@@ -4,14 +4,12 @@ const state = {
   tasks: [],
   view: "inbox",
   query: "",
-  sort: "smart",
-  includeDone: false,
+  sort: "recent",
   loading: false
 };
 
 const els = {
   graphSelect: document.querySelector("#graphSelect"),
-  includeDone: document.querySelector("#includeDone"),
   connectionText: document.querySelector("#connectionText"),
   setupPanel: document.querySelector("#setupPanel"),
   addForm: document.querySelector("#addForm"),
@@ -56,11 +54,6 @@ function bindEvents() {
 
   els.graphSelect.addEventListener("change", async () => {
     state.graph = els.graphSelect.value;
-    await refreshTasks();
-  });
-
-  els.includeDone.addEventListener("change", async () => {
-    state.includeDone = els.includeDone.checked;
     await refreshTasks();
   });
 
@@ -134,7 +127,7 @@ async function refreshTasks() {
   try {
     const params = new URLSearchParams({
       graph: state.graph,
-      includeDone: String(state.includeDone)
+      includeDone: "true"
     });
     const data = await api(`/api/tasks?${params}`);
     state.tasks = data.tasks || [];
@@ -285,6 +278,9 @@ function filterTasks(tasks) {
 
 function sortTasks(tasks, mode) {
   const copy = [...tasks];
+  if (mode === "recent") {
+    return copy.sort(compareRecentTasks);
+  }
   if (mode === "due") {
     return copy.sort((a, b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999"));
   }
@@ -294,7 +290,16 @@ function sortTasks(tasks, mode) {
   if (mode === "updated") {
     return copy.sort((a, b) => (b.editedTime || 0) - (a.editedTime || 0));
   }
-  return copy;
+  return copy.sort(compareRecentTasks);
+}
+
+function compareRecentTasks(a, b) {
+  const aDate = a.dueDate || "";
+  const bDate = b.dueDate || "";
+  if (aDate && bDate && aDate !== bDate) return bDate.localeCompare(aDate);
+  if (aDate && !bDate) return -1;
+  if (!aDate && bDate) return 1;
+  return (b.editedTime || 0) - (a.editedTime || 0) || a.text.localeCompare(b.text);
 }
 
 function getCounts(tasks) {
