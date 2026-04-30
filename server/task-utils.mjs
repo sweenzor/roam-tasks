@@ -62,9 +62,7 @@ export function normalizeTasks(rows = []) {
   const byUid = new Map();
 
   for (const row of rows) {
-    const [uid, string, pageTitle, createdTime = 0, editedTime = 0] = Array.isArray(row)
-      ? row
-      : [row.uid, row.string, row.pageTitle, row.createdTime, row.editedTime];
+    const [uid, string, pageTitle, pageUid, createdTime = 0, editedTime = 0] = normalizeTaskRow(row);
 
     if (!uid || !string) continue;
     const status = detectTaskStatus(string);
@@ -74,6 +72,7 @@ export function normalizeTasks(rows = []) {
       uid,
       string,
       pageTitle,
+      pageUid,
       createdTime,
       editedTime
     });
@@ -84,7 +83,7 @@ export function normalizeTasks(rows = []) {
   return [...byUid.values()].sort(compareTasks);
 }
 
-export function parseTask({ uid, string, pageTitle, createdTime = 0, editedTime = 0 }) {
+export function parseTask({ uid, string, pageTitle, pageUid, createdTime = 0, editedTime = 0 }) {
   const status = detectTaskStatus(string) ?? "todo";
   const pages = extractPageLinks(string).filter((page) => !isStatusTitle(page));
   const tags = extractTags(string).filter((tag) => !isStatusTitle(tag));
@@ -98,6 +97,8 @@ export function parseTask({ uid, string, pageTitle, createdTime = 0, editedTime 
     status,
     done: status === "done",
     pageTitle: pageTitle || "Untitled",
+    pageUid: pageUid || null,
+    pageUids: pageTitle && pageUid ? { [pageTitle]: pageUid } : {},
     pages,
     tags,
     dueDate,
@@ -105,6 +106,16 @@ export function parseTask({ uid, string, pageTitle, createdTime = 0, editedTime 
     createdTime: Number(createdTime) || 0,
     editedTime: Number(editedTime) || 0
   };
+}
+
+function normalizeTaskRow(row) {
+  if (!Array.isArray(row)) {
+    return [row.uid, row.string, row.pageTitle, row.pageUid, row.createdTime, row.editedTime];
+  }
+
+  const [uid, string, pageTitle, fourth, fifth = 0, sixth = 0] = row;
+  if (typeof fourth === "string") return [uid, string, pageTitle, fourth, fifth, sixth];
+  return [uid, string, pageTitle, undefined, fourth ?? 0, fifth ?? 0];
 }
 
 export function cleanTaskText(value = "") {

@@ -9,7 +9,6 @@ const state = {
 };
 
 const els = {
-  graphSelect: document.querySelector("#graphSelect"),
   connectionText: document.querySelector("#connectionText"),
   setupPanel: document.querySelector("#setupPanel"),
   addForm: document.querySelector("#addForm"),
@@ -52,11 +51,6 @@ function bindEvents() {
     });
   });
 
-  els.graphSelect.addEventListener("change", async () => {
-    state.graph = els.graphSelect.value;
-    await refreshTasks();
-  });
-
   els.sortSelect.addEventListener("change", () => {
     state.sort = els.sortSelect.value;
     render();
@@ -68,6 +62,18 @@ function bindEvents() {
   });
 
   els.refreshButton.addEventListener("click", refreshTasks);
+
+  els.taskList.addEventListener("click", async (event) => {
+    const link = event.target.closest("a[data-roam-title], a[data-roam-uid]");
+    if (!link || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+    event.preventDefault();
+    await openRoamTarget({
+      title: link.dataset.roamTitle,
+      uid: link.dataset.roamUid,
+      fallbackHref: link.href
+    });
+  });
 
   els.addForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -101,16 +107,7 @@ async function loadGraphs() {
     const data = await api("/api/graphs");
     state.graphs = data.graphs || [];
     state.graph = data.selectedGraph;
-    els.graphSelect.innerHTML = "";
 
-    for (const graph of state.graphs) {
-      const option = document.createElement("option");
-      option.value = graph.nickname;
-      option.textContent = `${graph.nickname} (${graph.type})`;
-      els.graphSelect.append(option);
-    }
-
-    els.graphSelect.disabled = state.graphs.length <= 1;
     els.setupPanel.classList.toggle("hidden", state.graphs.length > 0);
     els.connectionText.textContent = state.graphs.length ? "Ready" : "No graph";
     setStatus("Idle");
@@ -190,9 +187,10 @@ function renderTask(task) {
   check.addEventListener("click", () => updateTask(task, { done: !task.done }));
 
   const title = node.querySelector(".task-title");
-  title.textContent = task.text;
-  title.title = canWrite() ? "Edit task" : "This Roam token is read-only";
-  title.addEventListener("click", () => {
+  title.innerHTML = renderInlineMarkdown(task.text, task.pageUids || {});
+  title.classList.toggle("editable", canWrite());
+  title.title = canWrite() ? "Double-click to edit task" : "";
+  title.addEventListener("dblclick", () => {
     if (canWrite()) startEdit(node, task);
   });
 
@@ -213,7 +211,8 @@ function renderTask(task) {
   for (const chip of taskChips(task)) meta.append(chip);
 
   const open = node.querySelector(".open-link");
-  open.href = `roam://#/app/${encodeURIComponent(activeGraphName())}/page/${encodeURIComponent(task.uid)}`;
+  open.href = roamBlockUrl(task.uid);
+  open.dataset.roamUid = task.uid;
 
   const remove = node.querySelector(".delete-button");
   remove.disabled = !canWrite();
@@ -257,6 +256,23 @@ async function updateTask(task, changes) {
     return { ...candidate, ...data.task, pageTitle: candidate.pageTitle || data.task.pageTitle };
   });
   render();
+}
+
+async function openRoamTarget({ title, uid, fallbackHref }) {
+  try {
+    await api("/api/open", {
+      method: "POST",
+      body: {
+        graph: state.graph,
+        title,
+        uid
+      }
+    });
+    setStatus("Opened");
+  } catch (error) {
+    if (fallbackHref) window.location.href = fallbackHref;
+    setStatus(error.message, false, true);
+  }
 }
 
 function filterTasks(tasks) {
@@ -315,7 +331,7 @@ function getCounts(tasks) {
 
 function taskChips(task) {
   const chips = [];
-  chips.push(chip(task.pageTitle));
+  chips.push(pageChip(task.pageTitle, task.pageTitle, task.pageUid || task.pageUids?.[task.pageTitle]));
   if (task.dueDate) {
     const due = chip(formatDue(task.dueDate));
     if (task.dueDate === todayIso()) due.classList.add("due-today");
@@ -327,7 +343,9 @@ function taskChips(task) {
     priority.classList.add("priority");
     chips.push(priority);
   }
-  for (const tag of task.tags.slice(0, 3)) chips.push(chip(`#${tag}`));
+  for (const tag of task.tags.slice(0, 3)) {
+    chips.push(pageChip(`#${tag}`, tag, task.pageUids?.[tag]));
+  }
   return chips;
 }
 
@@ -335,6 +353,16 @@ function chip(text) {
   const node = document.createElement("span");
   node.className = "meta-chip";
   node.textContent = text;
+  return node;
+}
+
+function pageChip(text, pageTitle, pageUid) {
+  const node = document.createElement("a");
+  node.className = "meta-chip";
+  node.textContent = text;
+  node.href = roamPageUrl(pageTitle, pageUid);
+  setRoamLinkTarget(node, pageTitle, pageUid);
+  node.title = `Open ${pageTitle} in Roam`;
   return node;
 }
 
@@ -366,6 +394,14 @@ function activeGraphName() {
   return state.graphs.find((graph) => graph.nickname === state.graph)?.name || state.graph || "";
 }
 
+function roamPageUrl(pageTitle, pageUid) {
+  return roamBlockUrl(pageUid || pageTitle);
+}
+
+function roamBlockUrl(uid) {
+  return `roam://#/app/${encodeURIComponent(activeGraphName())}/page/${encodeURIComponent(uid)}`;
+}
+
 function activeGraph() {
   return state.graphs.find((graph) => graph.nickname === state.graph || graph.name === state.graph);
 }
@@ -389,6 +425,101 @@ function formatDue(isoDate) {
     day: "numeric",
     year: year === new Date().getFullYear() ? undefined : "numeric"
   }).format(new Date(year, month - 1, day));
+}
+
+function renderInlineMarkdown(markdown, pageUids = {}) {
+  const placeholders = [];
+  const stash = (html) => {
+    const token = `@@RTTOKEN${placeholders.length}@@`;
+    placeholders.push(html);
+    return token;
+  };
+
+  let source = String(markdown || "");
+
+  source = source.replace(/`([^`]+)`/g, (_, code) => stash(`<code>${escapeHtml(code)}</code>`));
+
+  source = source.replace(/\[([^\]\n]+)\]\(([^)\n]+)\)/g, (_, label, href) => {
+    return stash(renderMarkdownLink(label, href, pageUids));
+  });
+
+  source = source.replace(/\[\[([^\]\n]+)\]\]/g, (_, pageTitle) => {
+    return stash(renderRoamPageLink(pageTitle, pageTitle, pageUids));
+  });
+
+  source = source.replace(/\(\(([A-Za-z0-9_-]+)\)\)/g, (_, uid) => {
+    return stash(
+      `<a class="roam-page-link" href="${escapeAttribute(roamBlockUrl(uid))}" data-roam-uid="${escapeAttribute(uid)}" title="Open block in Roam">(${escapeHtml(uid)})</a>`
+    );
+  });
+
+  source = source.replace(/(^|[\s(])#([A-Za-z0-9_/-]+)/g, (match, prefix, tag) => {
+    return `${prefix}${stash(renderRoamPageLink(tag, `#${tag}`, pageUids))}`;
+  });
+
+  let html = escapeHtml(source);
+  html = html
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+    .replace(/~~([^~]+)~~/g, "<del>$1</del>")
+    .replace(/\*([^*\s][^*]*?)\*/g, "<em>$1</em>")
+    .replace(/_([^_\s][^_]*?)_/g, "<em>$1</em>");
+
+  placeholders.forEach((replacement, index) => {
+    html = html.replaceAll(`@@RTTOKEN${index}@@`, replacement);
+  });
+
+  return html;
+}
+
+function renderMarkdownLink(label, href, pageUids = {}) {
+  const trimmedHref = String(href || "").trim();
+  const pageMatch = trimmedHref.match(/^\[\[([^\]]+)\]\]$/);
+  if (pageMatch) return renderRoamPageLink(pageMatch[1], label, pageUids);
+
+  const safeHref = safeLinkHref(trimmedHref);
+  if (!safeHref) return escapeHtml(label);
+
+  const external = /^https?:/i.test(safeHref);
+  const target = external ? ' target="_blank" rel="noreferrer"' : "";
+  return `<a href="${escapeAttribute(safeHref)}"${target}>${escapeHtml(label)}</a>`;
+}
+
+function renderRoamPageLink(pageTitle, label, pageUids = {}) {
+  const pageUid = pageUids[pageTitle];
+  const targetAttribute = pageUid
+    ? `data-roam-uid="${escapeAttribute(pageUid)}"`
+    : `data-roam-title="${escapeAttribute(pageTitle)}"`;
+  return `<a class="roam-page-link" href="${escapeAttribute(roamPageUrl(pageTitle, pageUid))}" ${targetAttribute} title="Open ${escapeAttribute(pageTitle)} in Roam">${escapeHtml(label)}</a>`;
+}
+
+function setRoamLinkTarget(node, pageTitle, pageUid) {
+  if (pageUid) {
+    node.dataset.roamUid = pageUid;
+    delete node.dataset.roamTitle;
+    return;
+  }
+  node.dataset.roamTitle = pageTitle;
+  delete node.dataset.roamUid;
+}
+
+function safeLinkHref(href) {
+  if (/^(https?:|mailto:|roam:\/\/)/i.test(href)) return href;
+  if (href.startsWith("#")) return href;
+  return "";
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function escapeAttribute(value) {
+  return escapeHtml(value).replace(/`/g, "&#96;");
 }
 
 const viewCopy = {

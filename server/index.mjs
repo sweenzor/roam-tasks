@@ -21,20 +21,27 @@ const roamApiHost = process.env.ROAM_LOCAL_API_HOST || "127.0.0.1";
 const defaultGraphKey = process.env.ROAM_DEFAULT_GRAPH;
 const expectedApiVersion = "1.1.2";
 
-const taskQuery = `[:find ?uid ?string ?page-title
+const taskQuery = `[:find ?uid ?string ?page-title ?page-uid
   :in $ ?needle
   :where
   [?b :block/uid ?uid]
   [?b :block/string ?string]
   [(clojure.string/includes? ?string ?needle)]
   [?b :block/page ?p]
-  [?p :node/title ?page-title]]`;
+  [?p :node/title ?page-title]
+  [?p :block/uid ?page-uid]]`;
 
 const uidQuery = `[:find ?string
   :in $ ?uid
   :where
   [?b :block/uid ?uid]
   [?b :block/string ?string]]`;
+
+const pageUidQuery = `[:find ?title ?uid
+  :in $ [?title ...]
+  :where
+  [?p :node/title ?title]
+  [?p :block/uid ?uid]]`;
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -96,11 +103,32 @@ async function handleApi(request, response, url) {
     const graph = await resolveGraph(url.searchParams.get("graph"));
     const includeDone = url.searchParams.get("includeDone") !== "false";
     const rows = await readTaskRows(graph, includeDone);
+    const tasks = normalizeTasks(rows);
+    await enrichTaskPageUids(graph, tasks);
     sendJson(response, 200, {
-      tasks: normalizeTasks(rows),
+      tasks,
       queriedAt: new Date().toISOString()
     });
     return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/open") {
+    const body = await readJsonBody(request);
+    const graph = await resolveGraph(body.graph);
+
+    if (body.uid) {
+      await roamCall(graph, "ui.mainWindow.openBlock", [{ block: { uid: String(body.uid) } }]);
+      sendJson(response, 200, { success: true });
+      return;
+    }
+
+    if (body.title) {
+      await roamCall(graph, "ui.mainWindow.openPage", [{ page: { title: String(body.title) } }]);
+      sendJson(response, 200, { success: true });
+      return;
+    }
+
+    throw badRequest("A page title or block UID is required.");
   }
 
   if (request.method === "POST" && url.pathname === "/api/tasks") {
@@ -178,6 +206,50 @@ async function getBlockString(graph, uid) {
   const row = coerceRows(result.result)[0];
   if (!row?.[0]) throw notFound("Could not find that Roam block.");
   return row[0];
+}
+
+async function enrichTaskPageUids(graph, tasks) {
+  const titles = new Set();
+
+  for (const task of tasks) {
+    if (task.pageTitle && !task.pageUids?.[task.pageTitle]) titles.add(task.pageTitle);
+    for (const title of [...(task.pages || []), ...(task.tags || [])]) {
+      if (title && !task.pageUids?.[title]) titles.add(title);
+    }
+  }
+
+  const pageUids = await resolvePageUids(graph, [...titles]);
+  for (const task of tasks) {
+    task.pageUids = { ...(task.pageUids || {}) };
+    for (const title of [task.pageTitle, ...(task.pages || []), ...(task.tags || [])]) {
+      if (title && pageUids[title]) task.pageUids[title] = pageUids[title];
+    }
+  }
+}
+
+async function resolvePageUids(graph, titles) {
+  if (!titles.length) return {};
+
+  try {
+    const response = await roamCall(graph, "q", [pageUidQuery, titles]);
+    return Object.fromEntries(coerceRows(response.result).filter((row) => row[0] && row[1]));
+  } catch {
+    const entries = await Promise.all(
+      titles.map(async (title) => {
+        try {
+          const response = await roamCall(graph, "q", [
+            "[:find ?uid :in $ ?title :where [?p :node/title ?title] [?p :block/uid ?uid]]",
+            title
+          ]);
+          const uid = coerceRows(response.result)[0]?.[0];
+          return uid ? [title, uid] : null;
+        } catch {
+          return null;
+        }
+      })
+    );
+    return Object.fromEntries(entries.filter(Boolean));
+  }
 }
 
 async function roamCall(graph, action, args = []) {

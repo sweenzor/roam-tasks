@@ -31,13 +31,15 @@ test("updates task text with the current marker", () => {
 
 test("normalizes rows into sorted tasks with metadata", () => {
   const tasks = normalizeTasks([
-    ["abc123", "{{[[TODO]]}} Send invoice [[May 1st, 2026]] #admin", "April 30th, 2026", 1, 2],
-    ["older1", "{{[[TODO]]}} Older task", "January 1st, 2025", 1, 2],
+    ["abc123", "{{[[TODO]]}} Send invoice [[May 1st, 2026]] #admin", "April 30th, 2026", "pageabc12", 1, 2],
+    ["older1", "{{[[TODO]]}} Older task", "January 1st, 2025", "pageold12", 1, 2],
     ["def456", "A note mentioning TODO but not a task", "Notes", 1, 2]
   ]);
 
   assert.equal(tasks.length, 2);
   assert.equal(tasks[0].uid, "abc123");
+  assert.equal(tasks[0].pageUid, "pageabc12");
+  assert.equal(tasks[0].pageUids["April 30th, 2026"], "pageabc12");
   assert.equal(tasks[0].dueDate, "2026-05-01");
   assert.deepEqual(tasks[0].tags, ["admin"]);
   assert.equal(tasks[1].uid, "older1");
