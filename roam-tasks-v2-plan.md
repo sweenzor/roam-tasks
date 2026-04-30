@@ -1,4 +1,4 @@
-# roam-gantt — Gantt chart frontend for Roam Research
+# roam-tasks — Gantt chart frontend for Roam Research
 
 
 

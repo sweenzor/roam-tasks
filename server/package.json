@@ -1,5 +1,5 @@
 {
-  "name": "@roam-gantt/server",
+  "name": "@roam-tasks/server",
   "version": "0.0.1",
   "private": true,
   "type": "module",

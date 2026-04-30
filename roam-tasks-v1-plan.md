@@ -1,4 +1,4 @@
-# roam-gantt: v1 plan
+# roam-tasks: v1 plan
 
 
 
@@ -140,7 +140,7 @@ Why this ordering: `start::/end::` is unambiguous and Roam-idiomatic (matches ho
 
 
 
-- **Vite + React + TypeScript** — scaffold with `npm create vite@latest roam-gantt -- --template react-ts`.
+- **Vite + React + TypeScript** — scaffold with `npm create vite@latest roam-tasks -- --template react-ts`.
 
 - **Gantt lib: `gantt-task-react`** — TypeScript-native, MIT, supports day/week/month zoom, click handlers, grouping. No heavy custom SVG work for v1.
 
@@ -156,7 +156,7 @@ Why this ordering: `start::/end::` is unambiguous and Roam-idiomatic (matches ho
 
 ```
 
-roam-gantt/
+roam-tasks/
 
 ├─ package.json
 

@@ -1,4 +1,4 @@
-# roam-gantt
+# roam-tasks
 
 A Gantt chart frontend for [Roam Research](https://roamresearch.com/) TODOs.
 

@@ -4,4 +4,4 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-roam-gantt — a Gantt chart tool for Roam Research (project not yet scaffolded).
+roam-tasks — a Gantt chart tool for Roam Research (project not yet scaffolded).
