@@ -67,6 +67,8 @@ function bindEvents() {
     const link = event.target.closest("a[data-roam-title], a[data-roam-uid]");
     if (!link || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
 
+    if (link.dataset.roamUid && link.href.startsWith("roam://")) return;
+
     event.preventDefault();
     await openRoamTarget({
       title: link.dataset.roamTitle,
@@ -187,7 +189,7 @@ function renderTask(task) {
   check.addEventListener("click", () => updateTask(task, { done: !task.done }));
 
   const title = node.querySelector(".task-title");
-  title.innerHTML = renderInlineMarkdown(task.text, task.pageUids || {});
+  title.innerHTML = renderInlineMarkdown(task.text, task.pageUids || {}, task.blockStrings || {});
   title.classList.toggle("editable", canWrite());
   title.title = canWrite() ? "Double-click to edit task" : "";
   title.addEventListener("dblclick", () => {
@@ -427,7 +429,7 @@ function formatDue(isoDate) {
   }).format(new Date(year, month - 1, day));
 }
 
-function renderInlineMarkdown(markdown, pageUids = {}) {
+function renderInlineMarkdown(markdown, pageUids = {}, blockStrings = {}) {
   const placeholders = [];
   const stash = (html) => {
     const token = `@@RTTOKEN${placeholders.length}@@`;
@@ -443,13 +445,18 @@ function renderInlineMarkdown(markdown, pageUids = {}) {
     return stash(renderMarkdownLink(label, href, pageUids));
   });
 
+  source = source.replace(/#\[\[([^\]\n]+)\]\]/g, (_, pageTitle) => {
+    return stash(renderRoamPageLink(pageTitle, `#${pageTitle}`, pageUids));
+  });
+
   source = source.replace(/\[\[([^\]\n]+)\]\]/g, (_, pageTitle) => {
     return stash(renderRoamPageLink(pageTitle, pageTitle, pageUids));
   });
 
   source = source.replace(/\(\(([A-Za-z0-9_-]+)\)\)/g, (_, uid) => {
+    const label = blockStrings[uid] ? cleanRoamInlineText(blockStrings[uid]) : `(${uid})`;
     return stash(
-      `<a class="roam-page-link" href="${escapeAttribute(roamBlockUrl(uid))}" data-roam-uid="${escapeAttribute(uid)}" title="Open block in Roam">(${escapeHtml(uid)})</a>`
+      `<a class="roam-page-link" href="${escapeAttribute(roamBlockUrl(uid))}" data-roam-uid="${escapeAttribute(uid)}" title="Open block in Roam">${escapeHtml(label || `(${uid})`)}</a>`
     );
   });
 
@@ -507,6 +514,19 @@ function safeLinkHref(href) {
   if (/^(https?:|mailto:|roam:\/\/)/i.test(href)) return href;
   if (href.startsWith("#")) return href;
   return "";
+}
+
+function cleanRoamInlineText(value = "") {
+  return String(value)
+    .replace(/\{\{\s*\[\[(?:TODO|DONE)\]\]\s*\}\}/gi, "")
+    .replace(/\{\{\s*(?:TODO|DONE)\s*\}\}/gi, "")
+    .replace(/\[([^\]\n]+)\]\(\[\[([^\]\n]+)\]\]\)/g, "$1")
+    .replace(/\[([^\]\n]+)\]\(([^)\n]+)\)/g, "$1")
+    .replace(/#\[\[([^\]\n]+)\]\]/g, "#$1")
+    .replace(/\[\[([^\]\n]+)\]\]/g, "$1")
+    .replace(/^\s*[-*]\s+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function escapeHtml(value) {

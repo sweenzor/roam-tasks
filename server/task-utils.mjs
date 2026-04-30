@@ -87,6 +87,7 @@ export function parseTask({ uid, string, pageTitle, pageUid, createdTime = 0, ed
   const status = detectTaskStatus(string) ?? "todo";
   const pages = extractPageLinks(string).filter((page) => !isStatusTitle(page));
   const tags = extractTags(string).filter((tag) => !isStatusTitle(tag));
+  const blockRefs = extractBlockRefs(string);
   const dueDate = extractDueDate(string, pageTitle);
   const cleanText = cleanTaskText(string);
 
@@ -101,6 +102,8 @@ export function parseTask({ uid, string, pageTitle, pageUid, createdTime = 0, ed
     pageUids: pageTitle && pageUid ? { [pageTitle]: pageUid } : {},
     pages,
     tags,
+    blockRefs,
+    blockStrings: {},
     dueDate,
     priority: extractPriority(string),
     createdTime: Number(createdTime) || 0,
@@ -152,6 +155,18 @@ export function extractTags(value = "") {
   }
 
   return [...tags];
+}
+
+export function extractBlockRefs(value = "") {
+  const uids = new Set();
+  const blockRefPattern = /\(\(([A-Za-z0-9_-]+)\)\)/g;
+  let match;
+
+  while ((match = blockRefPattern.exec(value)) !== null) {
+    uids.add(match[1]);
+  }
+
+  return [...uids];
 }
 
 export function extractPriority(value = "") {

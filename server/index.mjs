@@ -37,6 +37,12 @@ const uidQuery = `[:find ?string
   [?b :block/uid ?uid]
   [?b :block/string ?string]]`;
 
+const blockStringQuery = `[:find ?uid ?string
+  :in $ [?uid ...]
+  :where
+  [?b :block/uid ?uid]
+  [?b :block/string ?string]]`;
+
 const pageUidQuery = `[:find ?title ?uid
   :in $ [?title ...]
   :where
@@ -105,6 +111,7 @@ async function handleApi(request, response, url) {
     const rows = await readTaskRows(graph, includeDone);
     const tasks = normalizeTasks(rows);
     await enrichTaskPageUids(graph, tasks);
+    await enrichTaskBlockRefs(graph, tasks);
     sendJson(response, 200, {
       tasks,
       queriedAt: new Date().toISOString()
@@ -224,6 +231,44 @@ async function enrichTaskPageUids(graph, tasks) {
     for (const title of [task.pageTitle, ...(task.pages || []), ...(task.tags || [])]) {
       if (title && pageUids[title]) task.pageUids[title] = pageUids[title];
     }
+  }
+}
+
+async function enrichTaskBlockRefs(graph, tasks) {
+  const uids = new Set();
+
+  for (const task of tasks) {
+    for (const uid of task.blockRefs || []) {
+      if (uid && !task.blockStrings?.[uid]) uids.add(uid);
+    }
+  }
+
+  const blockStrings = await resolveBlockStrings(graph, [...uids]);
+  for (const task of tasks) {
+    task.blockStrings = { ...(task.blockStrings || {}) };
+    for (const uid of task.blockRefs || []) {
+      if (uid && blockStrings[uid]) task.blockStrings[uid] = blockStrings[uid];
+    }
+  }
+}
+
+async function resolveBlockStrings(graph, uids) {
+  if (!uids.length) return {};
+
+  try {
+    const response = await roamCall(graph, "q", [blockStringQuery, uids]);
+    return Object.fromEntries(coerceRows(response.result).filter((row) => row[0] && row[1]));
+  } catch {
+    const entries = await Promise.all(
+      uids.map(async (uid) => {
+        try {
+          return [uid, await getBlockString(graph, uid)];
+        } catch {
+          return null;
+        }
+      })
+    );
+    return Object.fromEntries(entries.filter(Boolean));
   }
 }
 

@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   detectTaskStatus,
   ensureTodoString,
+  extractBlockRefs,
+  extractTags,
   normalizeTasks,
   parseRoamDate,
   taskStringWithStatus,
@@ -43,6 +45,14 @@ test("normalizes rows into sorted tasks with metadata", () => {
   assert.equal(tasks[0].dueDate, "2026-05-01");
   assert.deepEqual(tasks[0].tags, ["admin"]);
   assert.equal(tasks[1].uid, "older1");
+});
+
+test("extracts block refs and Roam hashtag page links", () => {
+  assert.deepEqual(extractBlockRefs("Review ((DXWejNn9_)) and ((DXWejNn9_))"), ["DXWejNn9_"]);
+  assert.deepEqual(extractTags("Archive #[[Reporting Startup Losses]] #admin"), [
+    "Reporting Startup Losses",
+    "admin"
+  ]);
 });
 
 test("parses common Roam date titles", () => {
