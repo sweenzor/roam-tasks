@@ -1,0 +1,15 @@
+{
+  "name": "roam-tasks",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Fast local task manager backed by Roam Research's desktop local API.",
+  "scripts": {
+    "dev": "node server/index.mjs",
+    "start": "node server/index.mjs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

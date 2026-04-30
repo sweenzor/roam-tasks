@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Roam Tasks</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div id="app" class="app-shell">
+      <aside class="sidebar" aria-label="Task views">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">RT</div>
+          <div>
+            <h1>Roam Tasks</h1>
+            <p id="connectionText">Checking Roam</p>
+          </div>
+        </div>
+
+        <label class="field-label" for="graphSelect">Graph</label>
+        <select id="graphSelect" class="input"></select>
+
+        <nav class="view-list" aria-label="Filters">
+          <button class="view-button active" data-view="inbox" type="button">
+            <span>Inbox</span><strong id="countInbox">0</strong>
+          </button>
+          <button class="view-button" data-view="today" type="button">
+            <span>Today</span><strong id="countToday">0</strong>
+          </button>
+          <button class="view-button" data-view="overdue" type="button">
+            <span>Overdue</span><strong id="countOverdue">0</strong>
+          </button>
+          <button class="view-button" data-view="upcoming" type="button">
+            <span>Upcoming</span><strong id="countUpcoming">0</strong>
+          </button>
+          <button class="view-button" data-view="done" type="button">
+            <span>Done</span><strong id="countDone">0</strong>
+          </button>
+        </nav>
+
+        <label class="toggle-row">
+          <input id="includeDone" type="checkbox">
+          <span>Load completed tasks</span>
+        </label>
+      </aside>
+
+      <main class="workspace">
+        <header class="toolbar">
+          <form id="addForm" class="quick-add">
+            <input id="taskInput" class="input task-input" autocomplete="off" placeholder="Add a Roam task" type="text">
+            <input id="pageInput" class="input page-input" autocomplete="off" placeholder="Page" type="text">
+            <button class="primary-button" type="submit" title="Add task">+</button>
+          </form>
+
+          <div class="tool-actions">
+            <input id="searchInput" class="input search-input" autocomplete="off" placeholder="Search" type="search">
+            <select id="sortSelect" class="input sort-input" title="Sort tasks">
+              <option value="smart">Smart</option>
+              <option value="due">Due</option>
+              <option value="page">Page</option>
+              <option value="updated">Updated</option>
+            </select>
+            <button id="refreshButton" class="icon-button" type="button" title="Refresh">↻</button>
+          </div>
+        </header>
+
+        <section id="setupPanel" class="setup-panel hidden">
+          <h2>Connect Roam Desktop</h2>
+          <p>No graph token was found. Run <code>npx @roam-research/roam-mcp connect</code>, approve the token in Roam Desktop, then refresh this page.</p>
+        </section>
+
+        <section class="summary-band" aria-label="Task summary">
+          <div>
+            <span class="summary-number" id="summaryOpen">0</span>
+            <span class="summary-label">Open</span>
+          </div>
+          <div>
+            <span class="summary-number urgent" id="summaryDue">0</span>
+            <span class="summary-label">Due</span>
+          </div>
+          <div>
+            <span class="summary-number" id="summaryPages">0</span>
+            <span class="summary-label">Pages</span>
+          </div>
+        </section>
+
+        <section class="list-head">
+          <div>
+            <h2 id="viewTitle">Inbox</h2>
+            <p id="viewSubtitle">Open tasks from Roam</p>
+          </div>
+          <span id="statusPill" class="status-pill">Idle</span>
+        </section>
+
+        <div id="taskList" class="task-list" aria-live="polite"></div>
+      </main>
+    </div>
+
+    <template id="taskTemplate">
+      <article class="task-row">
+        <button class="check-button" type="button" title="Toggle done"></button>
+        <div class="task-main">
+          <button class="task-title" type="button"></button>
+          <input class="input edit-input hidden" type="text">
+          <div class="task-meta"></div>
+        </div>
+        <div class="task-actions">
+          <a class="icon-button open-link" title="Open in Roam">↗</a>
+          <button class="icon-button delete-button" type="button" title="Delete">×</button>
+        </div>
+      </article>
+    </template>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
