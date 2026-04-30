@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { TaskQuery } from '../types';
 
-const KEY = 'roam-gantt.config.v1';
+const KEY = 'roam-tasks.config.v1';
 
 const DEFAULT: TaskQuery & { graph: string } = {
   tags: [],
