@@ -24,7 +24,7 @@ jobs:
 
   roam-help-graph-integration:
     if: ${{ vars.RUN_ROAM_HELP_GRAPH_INTEGRATION == '1' }}
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, roam]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

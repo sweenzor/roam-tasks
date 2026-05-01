@@ -64,6 +64,8 @@ This test calls `GET /api/health?graph=roam-official-help-graph` and validates t
 
 In GitHub Actions, the integration job runs only when repository variable `RUN_ROAM_HELP_GRAPH_INTEGRATION` is set to `1`.
 
+The integration job is configured for a self-hosted runner (`self-hosted`, `linux`, `roam`) so it can access a real Roam Desktop Local API endpoint.
+
 ## Docker
 
 ```bash
