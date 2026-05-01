@@ -5,4 +5,7 @@
 node_modules/
 npm-debug.log*
 coverage/
+dist/
+assets/app-icon.icns
+assets/app-icon.iconset/
 .roam-tasks-cache/

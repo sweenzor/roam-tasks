@@ -8,6 +8,7 @@ Roam Tasks is a local-first task management web app backed by Roam Research's de
 
 ## Architecture
 
+- `electron/` contains the Electron desktop shell, which starts the local server in-process.
 - `server/` contains the dependency-free Node HTTP server and Roam Local API proxy.
 - `public/` contains the static browser app.
 - `test/` contains Node built-in test runner coverage.
@@ -29,5 +30,6 @@ Keep tokens on the server side. Do not store Roam tokens in browser local storag
 
 - Run tests with `npm test`.
 - The Roam help-graph integration test runs by default; set `RUN_ROAM_INTEGRATION_TESTS=0` to skip it.
-- Run the app with `npm run dev`.
+- Run the app with `npm run dev`; this launches Electron and starts the server inside the desktop process.
+- Use `npm run fallback:docker` only as a flagged fallback when an agent needs to inspect the app in a normal browser. Open `http://localhost:5874`, then stop it with `npm run fallback:docker:down`.
 - Keep the app fast and dependency-light unless a dependency removes real complexity.

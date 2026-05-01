@@ -1,10 +1,11 @@
 # Roam Tasks
 
-A fast, local-first task management web app for Roam Research tasks. The browser talks only to this local Node server; the server reads Roam local API tokens from `~/.roam-tools.json` or environment variables and proxies requests to Roam Desktop.
+A fast, local-first Electron task manager for Roam Research tasks. The desktop app starts a local Node server inside Electron; the browser window talks only to that server, and the server reads Roam local API tokens from `~/.roam-tools.json` or environment variables before proxying requests to Roam Desktop.
 
 ## Requirements
 
 - Node.js 20 or newer
+- npm dependencies installed in this repo with `npm install`
 - Roam Research desktop app, with your graph open
 - A Roam Local API token
 
@@ -33,12 +34,59 @@ You can also create a token in Roam Desktop under Settings -> Graph -> Local API
 
 ## Run
 
+Install repo-local dependencies once:
+
 ```bash
-npm run dev
+npm install
+```
+
+Then launch the app:
+
+```bash
+npm start
+```
+
+This launches the Electron app. Electron starts the Node server inside the desktop process on a private loopback port and loads the UI in a sandboxed browser window. Roam graph tokens stay server-side and are never stored in browser local storage.
+
+For development, `npm run dev` does the same thing. The Electron dependency is local to this repository at `node_modules/`; it is not installed globally.
+
+## Dock Shortcut
+
+Build a Dockable macOS app bundle:
+
+```bash
+npm run build:mac
+```
+
+This creates `dist/Roam Tasks.app` using the repo-local Electron install. It does not install anything globally or copy files outside this repository.
+
+To add it to the Dock, open `dist/` in Finder, drag `Roam Tasks.app` into `/Applications`, launch it once, then choose **Options -> Keep in Dock** from its Dock icon. You can also keep it in the Dock directly from `dist/`, but `/Applications` is less fragile if you later move this repo.
+
+## Web Server Only
+
+```bash
+npm run server
+```
+
+Then open `http://localhost:5874`. This is useful for quick browser debugging, but the normal app runtime is Electron.
+
+## Flagged Browser Fallback
+
+```bash
+npm run fallback:docker
 ```
 
 Then open `http://localhost:5874`.
 
+This is a fallback for agents that need to inspect the app in a normal browser when the Electron GUI is not available. Docker runs the web server only; it does not run Electron. The compose file mounts `~/.roam-tools.json` and `~/.roam-local-api.json` read-only into the container and sets `ROAM_LOCAL_API_HOST=host.docker.internal` so the container can reach Roam Desktop on the host.
+
+Stop the fallback container with:
+
+```bash
+npm run fallback:docker:down
+```
+
+By default, the app uses the first configured non-help graph. To pin a specific graph, set `ROAM_DEFAULT_GRAPH` in your shell or local `.env` file before starting Docker.
 
 ## Testing
 
@@ -65,16 +113,6 @@ Set `RUN_ROAM_INTEGRATION_TESTS=0` when you only want the dependency-free unit t
 In GitHub Actions, the hosted coverage job disables this local Roam integration test with `RUN_ROAM_INTEGRATION_TESTS=0`. The dedicated integration job runs only when repository variable `RUN_ROAM_HELP_GRAPH_INTEGRATION` is set to `1`.
 
 The integration job is configured for a self-hosted runner (`self-hosted`, `linux`, `roam`) so it can access a real Roam Desktop Local API endpoint.
-
-## Docker
-
-```bash
-docker compose up --build
-```
-
-Then open `http://localhost:5874`.
-
-The compose file mounts `~/.roam-tools.json` and `~/.roam-local-api.json` read-only into the container and sets `ROAM_LOCAL_API_HOST=host.docker.internal` so the container can reach Roam Desktop on the host. By default, the app uses the first configured non-help graph. To pin a specific graph, set `ROAM_DEFAULT_GRAPH` in your shell or local `.env` file before starting Docker.
 
 ## Task Format
 

@@ -14,4 +14,4 @@ USER node
 
 EXPOSE 5874
 
-CMD ["npm", "start"]
+CMD ["npm", "run", "server"]

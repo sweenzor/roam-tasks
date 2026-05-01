@@ -4,15 +4,25 @@
   "private": true,
   "type": "module",
   "description": "Fast local task manager backed by Roam Research's desktop local API.",
+  "main": "electron/main.mjs",
   "scripts": {
-    "dev": "node server/index.mjs",
-    "start": "node server/index.mjs",
+    "build:icon": "node scripts/build-icons.mjs",
+    "build:mac": "npm run build:icon && node scripts/build-macos-app.mjs",
+    "docker:build": "docker build -t roam-tasks .",
+    "dev": "electron .",
+    "electron": "electron .",
+    "fallback:docker": "docker compose up --build",
+    "fallback:docker:down": "docker compose down",
+    "server": "node server/index.mjs",
+    "start": "electron .",
     "test": "node --test",
     "test:coverage": "node --test --experimental-test-coverage",
-    "test:integration": "RUN_ROAM_INTEGRATION_TESTS=1 node --test test/integration/*.test.mjs",
-    "docker:build": "docker build -t roam-tasks ."
+    "test:integration": "RUN_ROAM_INTEGRATION_TESTS=1 node --test test/integration/*.test.mjs"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "electron": "^41.4.0"
   }
 }

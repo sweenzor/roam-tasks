@@ -69,7 +69,7 @@ const mimeTypes = {
   ".ico": "image/x-icon"
 };
 
-const server = createServer(async (request, response) => {
+export const server = createServer(async (request, response) => {
   try {
     const url = new URL(request.url ?? "/", `http://${request.headers.host}`);
 
@@ -87,9 +87,45 @@ const server = createServer(async (request, response) => {
   }
 });
 
-server.listen(appPort, listenHost, () => {
-  console.log(`Roam Tasks running at http://localhost:${appPort}`);
-});
+export function startServer({ port = appPort, host = listenHost } = {}) {
+  return new Promise((resolve, reject) => {
+    const onError = (error) => {
+      cleanup();
+      reject(error);
+    };
+    const onListening = () => {
+      cleanup();
+      const address = server.address();
+      const resolvedPort = typeof address === "object" && address ? address.port : port;
+      const urlHost = host === "0.0.0.0" ? "127.0.0.1" : host;
+      resolve({
+        server,
+        host,
+        port: resolvedPort,
+        url: `http://${urlHost}:${resolvedPort}`
+      });
+    };
+    const cleanup = () => {
+      server.off("error", onError);
+      server.off("listening", onListening);
+    };
+
+    server.once("error", onError);
+    server.once("listening", onListening);
+    server.listen(port, host);
+  });
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  startServer()
+    .then(({ port }) => {
+      console.log(`Roam Tasks running at http://localhost:${port}`);
+    })
+    .catch((error) => {
+      console.error(error.message || error);
+      process.exitCode = 1;
+    });
+}
 
 async function handleApi(request, response, url) {
   if (request.method === "GET" && url.pathname === "/api/graphs") {
