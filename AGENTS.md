@@ -28,5 +28,6 @@ Keep tokens on the server side. Do not store Roam tokens in browser local storag
 ## Development
 
 - Run tests with `npm test`.
+- The Roam help-graph integration test runs by default; set `RUN_ROAM_INTEGRATION_TESTS=0` to skip it.
 - Run the app with `npm run dev`.
 - Keep the app fast and dependency-light unless a dependency removes real complexity.

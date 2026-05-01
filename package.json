@@ -7,7 +7,10 @@
   "scripts": {
     "dev": "node server/index.mjs",
     "start": "node server/index.mjs",
-    "test": "node --test"
+    "test": "node --test",
+    "test:coverage": "node --test --experimental-test-coverage",
+    "test:integration": "RUN_ROAM_INTEGRATION_TESTS=1 node --test test/integration/*.test.mjs",
+    "docker:build": "docker build -t roam-tasks ."
   },
   "engines": {
     "node": ">=20"
