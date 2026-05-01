@@ -459,11 +459,15 @@ async function resolveGraph(key) {
 
 function selectDefaultGraph(graphs) {
   if (!graphs.length) return null;
-  if (!defaultGraphKey) return graphs[0];
+  if (!defaultGraphKey) return graphs.find((graph) => !isRoamHelpGraph(graph)) || graphs[0];
   return (
     graphs.find((candidate) => candidate.nickname === defaultGraphKey || candidate.name === defaultGraphKey) ||
     graphs[0]
   );
+}
+
+function isRoamHelpGraph(graph) {
+  return graph.name === "help" && graph.nickname === "roam-official-help-graph";
 }
 
 function readEnvGraph() {
