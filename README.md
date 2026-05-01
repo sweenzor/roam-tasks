@@ -53,16 +53,16 @@ npm run test:coverage
 
 ### Integration test: Roam public help graph
 
-A gated integration test is included in `test/integration/roam-help-graph.test.mjs`. It is skipped unless enabled.
+The Roam help-graph integration test runs by default as part of `npm test`. It starts the local app server automatically, calls `GET /api/health?graph=roam-official-help-graph`, and validates the server can resolve the configured graph/token path end-to-end.
 
 ```bash
-npm run dev
-RUN_ROAM_INTEGRATION_TESTS=1 ROAM_PUBLIC_HELP_GRAPH=roam-official-help-graph npm run test:integration
+npm test
+RUN_ROAM_INTEGRATION_TESTS=0 npm test
 ```
 
-This test calls `GET /api/health?graph=roam-official-help-graph` and validates the server can resolve the configured graph/token path end-to-end.
+Set `RUN_ROAM_INTEGRATION_TESTS=0` when you only want the dependency-free unit tests. To target a different public graph nickname, set `ROAM_PUBLIC_HELP_GRAPH`.
 
-In GitHub Actions, the integration job runs only when repository variable `RUN_ROAM_HELP_GRAPH_INTEGRATION` is set to `1`.
+In GitHub Actions, the hosted coverage job disables this local Roam integration test with `RUN_ROAM_INTEGRATION_TESTS=0`. The dedicated integration job runs only when repository variable `RUN_ROAM_HELP_GRAPH_INTEGRATION` is set to `1`.
 
 The integration job is configured for a self-hosted runner (`self-hosted`, `linux`, `roam`) so it can access a real Roam Desktop Local API endpoint.
 
