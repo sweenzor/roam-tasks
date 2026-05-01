@@ -2,7 +2,7 @@ FROM node:22-alpine
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
-ENV PORT=5174
+ENV PORT=5874
 
 WORKDIR /app
 
@@ -12,6 +12,6 @@ COPY --chown=node:node public ./public
 
 USER node
 
-EXPOSE 5174
+EXPOSE 5874
 
 CMD ["npm", "start"]

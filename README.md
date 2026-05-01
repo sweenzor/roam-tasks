@@ -37,7 +37,7 @@ You can also create a token in Roam Desktop under Settings -> Graph -> Local API
 npm run dev
 ```
 
-Then open `http://localhost:5174`.
+Then open `http://localhost:5874`.
 
 ## Docker
 
@@ -45,7 +45,7 @@ Then open `http://localhost:5174`.
 docker compose up --build
 ```
 
-Then open `http://localhost:5174`.
+Then open `http://localhost:5874`.
 
 The compose file mounts `~/.roam-tools.json` and `~/.roam-local-api.json` read-only into the container and sets `ROAM_LOCAL_API_HOST=host.docker.internal` so the container can reach Roam Desktop on the host. By default, the app uses the first configured graph. To pin a specific graph, set `ROAM_DEFAULT_GRAPH` in your shell or local `.env` file before starting Docker.
 

@@ -15,7 +15,7 @@ import {
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const rootDir = join(__dirname, "..");
 const publicDir = join(rootDir, "public");
-const appPort = Number(process.env.PORT) || 5174;
+const appPort = Number(process.env.PORT) || 5874;
 const listenHost = process.env.HOST || "127.0.0.1";
 const roamApiHost = process.env.ROAM_LOCAL_API_HOST || "127.0.0.1";
 const defaultGraphKey = process.env.ROAM_DEFAULT_GRAPH;
