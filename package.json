@@ -8,13 +8,16 @@
   "scripts": {
     "build:icon": "node scripts/build-icons.mjs",
     "build:mac": "npm run build:icon && node scripts/build-macos-app.mjs",
+    "docker:build": "docker build -t roam-tasks .",
     "dev": "electron .",
     "electron": "electron .",
     "fallback:docker": "docker compose up --build",
     "fallback:docker:down": "docker compose down",
     "server": "node server/index.mjs",
     "start": "electron .",
-    "test": "node --test"
+    "test": "node --test",
+    "test:coverage": "node --test --experimental-test-coverage",
+    "test:integration": "RUN_ROAM_INTEGRATION_TESTS=1 node --test test/integration/*.test.mjs"
   },
   "engines": {
     "node": ">=20"

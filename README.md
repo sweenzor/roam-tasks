@@ -88,6 +88,32 @@ npm run fallback:docker:down
 
 By default, the app uses the first configured non-help graph. To pin a specific graph, set `ROAM_DEFAULT_GRAPH` in your shell or local `.env` file before starting Docker.
 
+## Testing
+
+```bash
+npm test
+npm run test:coverage
+```
+
+### Coverage
+
+`npm run test:coverage` uses Node's built-in coverage runner and currently targets full coverage for `server/task-utils.mjs`.
+
+### Integration test: Roam public help graph
+
+The Roam help-graph integration test runs by default as part of `npm test`. It starts the local app server automatically, calls `GET /api/health?graph=roam-official-help-graph`, and validates the server can resolve the configured graph/token path end-to-end.
+
+```bash
+npm test
+RUN_ROAM_INTEGRATION_TESTS=0 npm test
+```
+
+Set `RUN_ROAM_INTEGRATION_TESTS=0` when you only want the dependency-free unit tests. To target a different public graph nickname, set `ROAM_PUBLIC_HELP_GRAPH`.
+
+In GitHub Actions, the hosted coverage job disables this local Roam integration test with `RUN_ROAM_INTEGRATION_TESTS=0`. The dedicated integration job runs only when repository variable `RUN_ROAM_HELP_GRAPH_INTEGRATION` is set to `1`.
+
+The integration job is configured for a self-hosted runner (`self-hosted`, `linux`, `roam`) so it can access a real Roam Desktop Local API endpoint.
+
 ## Task Format
 
 Roam tasks are blocks containing Roam's TODO marker:
