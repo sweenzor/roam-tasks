@@ -43,6 +43,14 @@ const blockStringQuery = `[:find ?uid ?string
   [?b :block/uid ?uid]
   [?b :block/string ?string]]`;
 
+const directParentQuery = `[:find ?child-uid ?parent-uid ?parent-string
+  :in $ [?child-uid ...]
+  :where
+  [?b :block/uid ?child-uid]
+  [?p :block/children ?b]
+  [?p :block/uid ?parent-uid]
+  [?p :block/string ?parent-string]]`;
+
 const pageUidQuery = `[:find ?title ?uid
   :in $ [?title ...]
   :where
@@ -112,6 +120,7 @@ async function handleApi(request, response, url) {
     const tasks = normalizeTasks(rows);
     await enrichTaskPageUids(graph, tasks);
     await enrichTaskBlockRefs(graph, tasks);
+    await enrichTaskBreadcrumbs(graph, tasks);
     sendJson(response, 200, {
       tasks,
       queriedAt: new Date().toISOString()
@@ -269,6 +278,59 @@ async function resolveBlockStrings(graph, uids) {
       })
     );
     return Object.fromEntries(entries.filter(Boolean));
+  }
+}
+
+async function enrichTaskBreadcrumbs(graph, tasks) {
+  const maxDepth = 6;
+  const parentByChild = new Map();
+  const seen = new Set();
+  let frontier = tasks.map((task) => task.uid).filter(Boolean);
+
+  for (let depth = 0; depth < maxDepth && frontier.length; depth += 1) {
+    const nextFrontier = [];
+    for (const uid of frontier) seen.add(uid);
+
+    const parents = await resolveDirectParents(graph, frontier);
+    for (const parent of parents) {
+      if (!parentByChild.has(parent.childUid)) parentByChild.set(parent.childUid, parent);
+      if (!seen.has(parent.uid)) nextFrontier.push(parent.uid);
+    }
+
+    frontier = [...new Set(nextFrontier)];
+  }
+
+  for (const task of tasks) {
+    const chain = [];
+    const visited = new Set([task.uid]);
+    let currentUid = task.uid;
+
+    while (parentByChild.has(currentUid) && chain.length < maxDepth) {
+      const parent = parentByChild.get(currentUid);
+      if (visited.has(parent.uid)) break;
+      visited.add(parent.uid);
+      chain.push({ uid: parent.uid, string: parent.string });
+      currentUid = parent.uid;
+    }
+
+    task.breadcrumb = chain.reverse();
+  }
+}
+
+async function resolveDirectParents(graph, childUids) {
+  if (!childUids.length) return [];
+
+  try {
+    const response = await roamCall(graph, "q", [directParentQuery, childUids]);
+    return coerceRows(response.result)
+      .filter((row) => row[0] && row[1] && row[2])
+      .map((row) => ({
+        childUid: row[0],
+        uid: row[1],
+        string: row[2]
+      }));
+  } catch {
+    return [];
   }
 }
 

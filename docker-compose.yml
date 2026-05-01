@@ -7,7 +7,7 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 5174
-      ROAM_DEFAULT_GRAPH: personal-graph
+      ROAM_DEFAULT_GRAPH: ${ROAM_DEFAULT_GRAPH:-}
       ROAM_LOCAL_API_HOST: host.docker.internal
     volumes:
       - ${HOME}/.roam-tools.json:/home/node/.roam-tools.json:ro

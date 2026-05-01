@@ -13,7 +13,6 @@
           <div class="brand-mark" aria-hidden="true">RT</div>
           <div>
             <h1>Roam Tasks</h1>
-            <p id="connectionText">Checking Roam</p>
           </div>
         </div>
 
@@ -30,30 +29,41 @@
           <button class="view-button" data-view="upcoming" type="button">
             <span>Upcoming</span><strong id="countUpcoming">0</strong>
           </button>
+          <button class="view-button" data-view="since" type="button">
+            <span>Since</span><strong id="countSince">0</strong>
+          </button>
           <button class="view-button" data-view="done" type="button">
             <span>Done</span><strong id="countDone">0</strong>
           </button>
         </nav>
 
+        <div class="sidebar-status">
+          <span id="statusPill" class="status-pill">Idle</span>
+        </div>
       </aside>
 
       <main class="workspace">
         <header class="toolbar">
-          <form id="addForm" class="quick-add">
+          <form id="addForm" class="quick-add hidden">
             <input id="taskInput" class="input task-input" autocomplete="off" placeholder="Add a Roam task" type="text">
             <input id="pageInput" class="input page-input" autocomplete="off" placeholder="Page" type="text">
             <button class="primary-button" type="submit" title="Add task">+</button>
           </form>
 
           <div class="tool-actions">
+            <button id="refreshButton" class="icon-button" type="button" title="Refresh">↻</button>
             <input id="searchInput" class="input search-input" autocomplete="off" placeholder="Search" type="search">
+            <input id="sinceInput" class="input since-input hidden" title="Show tasks since date" type="date">
+            <label id="sinceDoneFilter" class="since-done-filter hidden">
+              <input id="sinceDoneToggle" type="checkbox">
+              <span>Hide done</span>
+            </label>
             <select id="sortSelect" class="input sort-input" title="Sort tasks">
               <option value="recent">Recent</option>
               <option value="due">Due</option>
               <option value="page">Page</option>
               <option value="updated">Updated</option>
             </select>
-            <button id="refreshButton" class="icon-button" type="button" title="Refresh">↻</button>
           </div>
         </header>
 
@@ -62,27 +72,10 @@
           <p>No graph token was found. Run <code>npx @roam-research/roam-mcp connect</code>, approve the token in Roam Desktop, then refresh this page.</p>
         </section>
 
-        <section class="summary-band" aria-label="Task summary">
-          <div>
-            <span class="summary-number" id="summaryOpen">0</span>
-            <span class="summary-label">Open</span>
-          </div>
-          <div>
-            <span class="summary-number urgent" id="summaryDue">0</span>
-            <span class="summary-label">Due</span>
-          </div>
-          <div>
-            <span class="summary-number" id="summaryPages">0</span>
-            <span class="summary-label">Pages</span>
-          </div>
-        </section>
-
         <section class="list-head">
           <div>
             <h2 id="viewTitle">Inbox</h2>
-            <p id="viewSubtitle">Open tasks from Roam</p>
           </div>
-          <span id="statusPill" class="status-pill">Idle</span>
         </section>
 
         <div id="taskList" class="task-list" aria-live="polite"></div>

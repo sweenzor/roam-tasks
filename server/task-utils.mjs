@@ -104,6 +104,7 @@ export function parseTask({ uid, string, pageTitle, pageUid, createdTime = 0, ed
     tags,
     blockRefs,
     blockStrings: {},
+    breadcrumb: [],
     dueDate,
     priority: extractPriority(string),
     createdTime: Number(createdTime) || 0,

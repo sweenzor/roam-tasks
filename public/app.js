@@ -5,33 +5,35 @@ const state = {
   view: "inbox",
   query: "",
   sort: "recent",
+  sinceDate: loadSinceDate(),
+  sinceHideDone: loadSinceHideDone(),
   loading: false
 };
 
 const els = {
-  connectionText: document.querySelector("#connectionText"),
   setupPanel: document.querySelector("#setupPanel"),
   addForm: document.querySelector("#addForm"),
   taskInput: document.querySelector("#taskInput"),
   pageInput: document.querySelector("#pageInput"),
+  toolActions: document.querySelector(".tool-actions"),
   searchInput: document.querySelector("#searchInput"),
+  sinceInput: document.querySelector("#sinceInput"),
+  sinceDoneFilter: document.querySelector("#sinceDoneFilter"),
+  sinceDoneToggle: document.querySelector("#sinceDoneToggle"),
   sortSelect: document.querySelector("#sortSelect"),
   refreshButton: document.querySelector("#refreshButton"),
   taskList: document.querySelector("#taskList"),
   taskTemplate: document.querySelector("#taskTemplate"),
   viewTitle: document.querySelector("#viewTitle"),
-  viewSubtitle: document.querySelector("#viewSubtitle"),
   statusPill: document.querySelector("#statusPill"),
   counts: {
     inbox: document.querySelector("#countInbox"),
     today: document.querySelector("#countToday"),
     overdue: document.querySelector("#countOverdue"),
     upcoming: document.querySelector("#countUpcoming"),
+    since: document.querySelector("#countSince"),
     done: document.querySelector("#countDone")
-  },
-  summaryOpen: document.querySelector("#summaryOpen"),
-  summaryDue: document.querySelector("#summaryDue"),
-  summaryPages: document.querySelector("#summaryPages")
+  }
 };
 
 boot();
@@ -58,6 +60,21 @@ function bindEvents() {
 
   els.searchInput.addEventListener("input", () => {
     state.query = els.searchInput.value.trim().toLowerCase();
+    render();
+  });
+
+  els.sinceInput.value = state.sinceDate;
+  els.sinceInput.addEventListener("change", () => {
+    state.sinceDate = els.sinceInput.value || defaultSinceDate();
+    els.sinceInput.value = state.sinceDate;
+    localStorage.setItem("roamTasksSinceDate", state.sinceDate);
+    render();
+  });
+
+  els.sinceDoneToggle.checked = state.sinceHideDone;
+  els.sinceDoneToggle.addEventListener("change", () => {
+    state.sinceHideDone = els.sinceDoneToggle.checked;
+    localStorage.setItem("roamTasksSinceHideDone", state.sinceHideDone ? "true" : "false");
     render();
   });
 
@@ -111,10 +128,8 @@ async function loadGraphs() {
     state.graph = data.selectedGraph;
 
     els.setupPanel.classList.toggle("hidden", state.graphs.length > 0);
-    els.connectionText.textContent = state.graphs.length ? "Ready" : "No graph";
     setStatus("Idle");
   } catch (error) {
-    els.connectionText.textContent = "Setup needed";
     els.setupPanel.classList.remove("hidden");
     setStatus(error.message, false, true);
   }
@@ -130,7 +145,6 @@ async function refreshTasks() {
     });
     const data = await api(`/api/tasks?${params}`);
     state.tasks = data.tasks || [];
-    els.connectionText.textContent = "Connected";
     setStatus("Synced");
   } catch (error) {
     setStatus(error.message, false, true);
@@ -154,14 +168,17 @@ function render() {
   els.counts.today.textContent = counts.today;
   els.counts.overdue.textContent = counts.overdue;
   els.counts.upcoming.textContent = counts.upcoming;
+  els.counts.since.textContent = counts.since;
   els.counts.done.textContent = counts.done;
-  els.summaryOpen.textContent = counts.inbox;
-  els.summaryDue.textContent = counts.today + counts.overdue;
-  els.summaryPages.textContent = new Set(state.tasks.filter((task) => !task.done).map((task) => task.pageTitle)).size;
 
   const visible = sortTasks(filterTasks(state.tasks), state.sort);
-  els.viewTitle.textContent = viewCopy[state.view].title;
-  els.viewSubtitle.textContent = viewCopy[state.view].subtitle;
+  els.viewTitle.textContent = state.view === "since"
+    ? `Since ${formatDue(state.sinceDate)}${state.sinceHideDone ? " · Open" : ""}`
+    : viewCopy[state.view].title;
+  els.toolActions.classList.toggle("since-active", state.view === "since");
+  els.sinceInput.classList.toggle("hidden", state.view !== "since");
+  els.sinceDoneFilter.classList.toggle("hidden", state.view !== "since");
+  els.sinceDoneToggle.checked = state.sinceHideDone;
   els.taskList.innerHTML = "";
 
   if (!state.graphs.length) {
@@ -210,7 +227,7 @@ function renderTask(task) {
   });
 
   const meta = node.querySelector(".task-meta");
-  for (const chip of taskChips(task)) meta.append(chip);
+  renderTaskMeta(task, meta);
 
   const open = node.querySelector(".open-link");
   open.href = roamBlockUrl(task.uid);
@@ -281,13 +298,20 @@ function filterTasks(tasks) {
   const today = todayIso();
   return tasks.filter((task) => {
     if (state.view === "done" && !task.done) return false;
-    if (state.view !== "done" && task.done) return false;
+    if (state.view === "since" && !isTaskSinceViewMatch(task)) return false;
+    if (!["done", "since"].includes(state.view) && task.done) return false;
     if (state.view === "today" && task.dueDate !== today) return false;
     if (state.view === "overdue" && !(task.dueDate && task.dueDate < today)) return false;
     if (state.view === "upcoming" && !(task.dueDate && task.dueDate > today)) return false;
 
     if (!state.query) return true;
-    const haystack = [task.text, task.pageTitle, ...(task.tags || []), ...(task.pages || [])]
+    const haystack = [
+      task.text,
+      task.pageTitle,
+      ...(task.tags || []),
+      ...(task.pages || []),
+      ...(task.breadcrumb || []).map((parent) => parent.string)
+    ]
       .join(" ")
       .toLowerCase();
     return haystack.includes(state.query);
@@ -327,13 +351,115 @@ function getCounts(tasks) {
     today: tasks.filter((task) => !task.done && task.dueDate === today).length,
     overdue: tasks.filter((task) => !task.done && task.dueDate && task.dueDate < today).length,
     upcoming: tasks.filter((task) => !task.done && task.dueDate && task.dueDate > today).length,
+    since: tasks.filter((task) => isTaskSinceViewMatch(task)).length,
     done: tasks.filter((task) => task.done).length
   };
 }
 
-function taskChips(task) {
+function renderTaskMeta(task, meta) {
+  const details = detailChips(task);
+  if (details.length) {
+    const line = metaLine("created");
+    for (const node of details) line.append(node);
+    meta.append(line);
+  }
+
+  const path = pathLine(task);
+  if (path) meta.append(path);
+
+  const related = relatedChips(task);
+  if (related.length) {
+    const line = metaLine("related");
+    for (const node of related) line.append(node);
+    meta.append(line);
+  }
+}
+
+function metaLine(label) {
+  const line = document.createElement("div");
+  line.className = "meta-line";
+  const labelNode = document.createElement("span");
+  labelNode.className = "meta-label";
+  labelNode.textContent = label;
+  line.append(labelNode);
+  return line;
+}
+
+function pathLine(task) {
+  const nodes = [];
+  const includeRootPage = !isDailyNoteTitle(task.pageTitle);
+
+  if (includeRootPage) {
+    nodes.push(pathChip(task.pageTitle));
+  }
+
+  for (const parent of task.breadcrumb || []) {
+    nodes.push(pathChip(cleanRoamInlineText(parent.string) || parent.uid));
+  }
+
+  if (!nodes.length) return null;
+
+  const line = metaLine("path");
+  line.classList.add("path-line");
+  line.tabIndex = 0;
+  line.setAttribute("role", "button");
+  line.setAttribute("aria-expanded", "false");
+  line.title = "Click to expand path";
+
+  const values = document.createElement("span");
+  values.className = "path-values";
+  for (const node of nodes) values.append(node);
+  line.append(values);
+
+  const toggle = () => {
+    const expanded = !line.classList.contains("expanded");
+    line.classList.toggle("expanded", expanded);
+    line.setAttribute("aria-expanded", expanded ? "true" : "false");
+    line.title = expanded ? "Click to collapse path" : "Click to expand path";
+  };
+
+  line.addEventListener("click", (event) => {
+    toggle();
+  });
+  line.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    toggle();
+  });
+
+  return line;
+}
+
+function pathChip(text) {
+  const node = chip(text);
+  node.classList.add("path-chip", "breadcrumb-chip");
+  node.title = text;
+  return node;
+}
+
+function relatedChips(task) {
   const chips = [];
-  chips.push(pageChip(task.pageTitle, task.pageTitle, task.pageUid || task.pageUids?.[task.pageTitle]));
+  const seen = new Set([task.pageTitle]);
+  const taggedPages = new Set(task.tags || []);
+
+  for (const page of task.pages || []) {
+    if (seen.has(page) || taggedPages.has(page) || isRoamDateTitle(page)) continue;
+    seen.add(page);
+    chips.push(pageChip(page, page, task.pageUids?.[page]));
+  }
+
+  for (const tag of task.tags || []) {
+    if (seen.has(tag) || seen.has(`#${tag}`)) continue;
+    seen.add(tag);
+    seen.add(`#${tag}`);
+    chips.push(pageChip(`#${tag}`, tag, task.pageUids?.[tag]));
+  }
+
+  return chips;
+}
+
+function detailChips(task) {
+  const chips = [];
   if (task.dueDate) {
     const due = chip(formatDue(task.dueDate));
     if (task.dueDate === todayIso()) due.classList.add("due-today");
@@ -344,9 +470,6 @@ function taskChips(task) {
     const priority = chip(`P${task.priority}`);
     priority.classList.add("priority");
     chips.push(priority);
-  }
-  for (const tag of task.tags.slice(0, 3)) {
-    chips.push(pageChip(`#${tag}`, tag, task.pageUids?.[tag]));
   }
   return chips;
 }
@@ -365,6 +488,17 @@ function pageChip(text, pageTitle, pageUid) {
   node.href = roamPageUrl(pageTitle, pageUid);
   setRoamLinkTarget(node, pageTitle, pageUid);
   node.title = `Open ${pageTitle} in Roam`;
+  return node;
+}
+
+function blockChip(parent) {
+  const node = document.createElement("a");
+  const label = cleanRoamInlineText(parent.string) || parent.uid;
+  node.className = "meta-chip breadcrumb-chip";
+  node.textContent = label;
+  node.href = roamBlockUrl(parent.uid);
+  node.dataset.roamUid = parent.uid;
+  node.title = "Open parent block in Roam";
   return node;
 }
 
@@ -418,6 +552,57 @@ function todayIso() {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function defaultSinceDate() {
+  const date = new Date();
+  date.setDate(date.getDate() - 30);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function loadSinceDate() {
+  return localStorage.getItem("roamTasksSinceDate") || defaultSinceDate();
+}
+
+function loadSinceHideDone() {
+  return localStorage.getItem("roamTasksSinceHideDone") === "true";
+}
+
+function isTaskSince(task, sinceDate) {
+  const date = taskDateIso(task);
+  return Boolean(date && sinceDate && date >= sinceDate);
+}
+
+function isTaskSinceViewMatch(task) {
+  if (!isTaskSince(task, state.sinceDate)) return false;
+  return !(state.sinceHideDone && task.done);
+}
+
+function taskDateIso(task) {
+  if (task.dueDate) return task.dueDate;
+  const timestamp = Number(task.createdTime || task.editedTime || 0);
+  if (!timestamp) return "";
+  return new Date(timestamp).toISOString().slice(0, 10);
+}
+
+function isRoamDateTitle(value = "") {
+  return parseRoamDateTitle(value) !== "";
+}
+
+function isDailyNoteTitle(value = "") {
+  return isRoamDateTitle(value) || /^\d{1,2}-\d{1,2}-\d{4}$/.test(value.trim());
+}
+
+function parseRoamDateTitle(value = "") {
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  const match = trimmed.match(
+    /^(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:st|nd|rd|th)?(?:,\s*\d{4})?$/i
+  );
+  return match ? trimmed : "";
 }
 
 function formatDue(isoDate) {
@@ -524,6 +709,10 @@ function cleanRoamInlineText(value = "") {
     .replace(/\[([^\]\n]+)\]\(([^)\n]+)\)/g, "$1")
     .replace(/#\[\[([^\]\n]+)\]\]/g, "#$1")
     .replace(/\[\[([^\]\n]+)\]\]/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/~~([^~]+)~~/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
     .replace(/^\s*[-*]\s+/, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -544,23 +733,21 @@ function escapeAttribute(value) {
 
 const viewCopy = {
   inbox: {
-    title: "Inbox",
-    subtitle: "Open tasks from Roam"
+    title: "Inbox"
   },
   today: {
-    title: "Today",
-    subtitle: "Tasks linked to today's date"
+    title: "Today"
   },
   overdue: {
-    title: "Overdue",
-    subtitle: "Open tasks with past dates"
+    title: "Overdue"
   },
   upcoming: {
-    title: "Upcoming",
-    subtitle: "Open tasks with future dates"
+    title: "Upcoming"
+  },
+  since: {
+    title: "Since"
   },
   done: {
-    title: "Done",
-    subtitle: "Completed Roam tasks"
+    title: "Done"
   }
 };
