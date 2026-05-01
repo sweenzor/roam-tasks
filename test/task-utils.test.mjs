@@ -138,7 +138,7 @@ test("extracts due dates, created dates, priority and formatting", () => {
   assert.equal(extractPriority("! ping"), 3);
   assert.equal(extractPriority("no priority"), null);
 
-  assert.equal(formatRoamDailyDate(new Date(Date.UTC(2026, 4, 1))), "05-01-2026");
+  assert.equal(formatRoamDailyDate(new Date(2026, 4, 1)), "05-01-2026");
 });
 
 test("ensures a task marker exists", () => {

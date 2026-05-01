@@ -32,7 +32,20 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run dev &
+      - name: Start local test server
+        run: |
+          npm run dev &
+          echo $! > server.pid
+          for attempt in {1..50}; do
+            if node -e "fetch(process.env.ROAM_TASKS_BASE_URL).then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"; then
+              exit 0
+            fi
+            sleep 0.2
+          done
+          echo "Local test server did not become ready" >&2
+          exit 1
+        env:
+          ROAM_TASKS_BASE_URL: http://127.0.0.1:5874
       - run: npm run test:integration
         env:
           RUN_ROAM_INTEGRATION_TESTS: "1"
@@ -44,3 +57,9 @@ jobs:
           ROAM_LOCAL_API_TOKEN: ${{ secrets.ROAM_LOCAL_API_TOKEN }}
           ROAM_LOCAL_API_HOST: ${{ vars.ROAM_LOCAL_API_HOST }}
           ROAM_LOCAL_API_PORT: ${{ vars.ROAM_LOCAL_API_PORT }}
+      - name: Stop local test server
+        if: always()
+        run: |
+          if [ -f server.pid ]; then
+            kill "$(cat server.pid)" || true
+          fi
