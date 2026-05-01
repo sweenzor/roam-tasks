@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Roam Tasks</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <meta name="theme-color" content="#171a18">
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div id="app" class="app-shell">
+      <main class="workspace">
+        <header class="view-bar">
+          <nav class="view-list" aria-label="Task views">
+            <button class="view-button" data-view="inbox" type="button">
+              <span>Inbox</span><strong id="countInbox">0</strong>
+            </button>
+            <button class="view-button" data-view="today" type="button">
+              <span>Today</span><strong id="countToday">0</strong>
+            </button>
+            <button class="view-button" data-view="overdue" type="button">
+              <span>Overdue</span><strong id="countOverdue">0</strong>
+            </button>
+            <button class="view-button" data-view="upcoming" type="button">
+              <span>Upcoming</span><strong id="countUpcoming">0</strong>
+            </button>
+            <button class="view-button active" data-view="since" type="button">
+              <span>Since</span><strong id="countSince">0</strong>
+            </button>
+            <button class="view-button" data-view="done" type="button">
+              <span>Done</span>
+            </button>
+          </nav>
+          <span id="statusPill" class="status-pill">Idle</span>
+        </header>
+
+        <header class="toolbar">
+          <form id="addForm" class="quick-add hidden">
+            <input id="taskInput" class="input task-input" autocomplete="off" placeholder="Add a Roam task" type="text">
+            <input id="pageInput" class="input page-input" autocomplete="off" placeholder="Page" type="text">
+            <button class="primary-button" type="submit" title="Add task">+</button>
+          </form>
+
+          <div class="tool-actions">
+            <button id="refreshButton" class="icon-button" type="button" title="Refresh">↻</button>
+            <input id="searchInput" class="input search-input" autocomplete="off" placeholder="Search" type="search">
+            <input id="sinceInput" class="input since-input hidden" title="Show tasks since date" type="date">
+            <label id="sinceDoneFilter" class="since-done-filter hidden">
+              <input id="sinceDoneToggle" type="checkbox">
+              <span>Hide completed</span>
+            </label>
+            <select id="sortSelect" class="input sort-input" title="Sort tasks">
+              <option value="recent">Recent</option>
+              <option value="due">Due</option>
+              <option value="page">Page</option>
+              <option value="updated">Updated</option>
+            </select>
+          </div>
+        </header>
+
+        <section id="setupPanel" class="setup-panel hidden">
+          <h2>Connect Roam Desktop</h2>
+          <p>No graph token was found. Run <code>npx @roam-research/roam-mcp connect</code>, approve the token in Roam Desktop, then refresh this page.</p>
+        </section>
+
+        <section class="list-head">
+          <h2 id="viewTitle">Since</h2>
+        </section>
+
+        <div id="taskList" class="task-list" aria-live="polite"></div>
+      </main>
+    </div>
+
+    <template id="taskTemplate">
+      <article class="task-row">
+        <button class="check-button" type="button" title="Toggle done"></button>
+        <div class="task-main">
+          <div class="task-title"></div>
+          <input class="input edit-input hidden" type="text">
+          <div class="task-meta"></div>
+        </div>
+        <div class="task-actions">
+          <a class="icon-button open-link" title="Open in Roam">↗</a>
+          <button class="icon-button delete-button" type="button" title="Delete">×</button>
+        </div>
+      </article>
+    </template>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

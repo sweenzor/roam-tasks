@@ -1,0 +1,8 @@
+.DS_Store
+.git
+.env
+.env.*
+node_modules
+npm-debug.log*
+coverage
+.roam-tasks-cache
