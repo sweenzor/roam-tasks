@@ -96,7 +96,10 @@ export function parseTask({ uid, string, pageTitle, pageUid, createdTime = 0, ed
   const pages = extractPageLinks(string).filter((page) => !isStatusTitle(page));
   const tags = extractTags(string).filter((tag) => !isStatusTitle(tag));
   const blockRefs = extractBlockRefs(string);
-  const dueDate = extractDueDate(string, pageTitle);
+  const dueDate = extractDueDate(string);
+  const createdDate = extractCreatedDate(createdTime, pageTitle);
+  const completedDate = status === "done" ? timestampToIsoDate(editedTime) : null;
+  const abandonedDate = status === "abandoned" ? timestampToIsoDate(editedTime) : null;
   const cleanText = cleanTaskText(string);
 
   return {
@@ -113,11 +116,39 @@ export function parseTask({ uid, string, pageTitle, pageUid, createdTime = 0, ed
     blockRefs,
     blockStrings: {},
     breadcrumb: [],
+    createdDate,
+    completedDate,
+    abandonedDate,
     dueDate,
     priority: extractPriority(string),
     createdTime: Number(createdTime) || 0,
     editedTime: Number(editedTime) || 0
   };
+}
+
+export function mergePathRelations(task) {
+  const pages = new Set(task.pages || []);
+  const tags = new Set(task.tags || []);
+
+  for (const source of taskPathRelationSources(task)) {
+    for (const page of extractPageLinks(source).filter((page) => !isStatusTitle(page))) {
+      pages.add(page);
+    }
+    for (const tag of extractTags(source).filter((tag) => !isStatusTitle(tag))) {
+      tags.add(tag);
+    }
+  }
+
+  task.pages = [...pages];
+  task.tags = [...tags];
+  return task;
+}
+
+function taskPathRelationSources(task) {
+  return [
+    task.pageTitle || "",
+    ...(task.breadcrumb || []).map((parent) => parent.string || "")
+  ].filter(Boolean);
 }
 
 function normalizeTaskRow(row) {
@@ -185,7 +216,7 @@ export function extractPriority(value = "") {
   return null;
 }
 
-export function extractDueDate(value = "", pageTitle = "") {
+export function extractDueDate(value = "") {
   const explicit = value.match(
     /(?:due|do|scheduled|deadline)::?\s*(\[\[[^\]]+\]\]|[A-Za-z]+\s+\d{1,2}(?:st|nd|rd|th)?(?:,\s*\d{4})?|\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{2,4})/i
   );
@@ -200,7 +231,11 @@ export function extractDueDate(value = "", pageTitle = "") {
     if (parsed) return parsed;
   }
 
-  return parseRoamDate(pageTitle);
+  return null;
+}
+
+export function extractCreatedDate(createdTime = 0, pageTitle = "") {
+  return timestampToIsoDate(createdTime) || parseRoamDate(pageTitle);
 }
 
 export function parseRoamDate(value = "", fallbackYear = new Date().getFullYear()) {
@@ -238,6 +273,9 @@ function compareTasks(a, b) {
   if (a.dueDate && b.dueDate && a.dueDate !== b.dueDate) return b.dueDate.localeCompare(a.dueDate);
   if (a.dueDate && !b.dueDate) return -1;
   if (!a.dueDate && b.dueDate) return 1;
+  if (a.createdDate && b.createdDate && a.createdDate !== b.createdDate) return b.createdDate.localeCompare(a.createdDate);
+  if (a.createdDate && !b.createdDate) return -1;
+  if (!a.createdDate && b.createdDate) return 1;
   if (a.priority && b.priority && a.priority !== b.priority) return a.priority - b.priority;
   if (a.priority && !b.priority) return -1;
   if (!a.priority && b.priority) return 1;
@@ -268,6 +306,14 @@ function toIsoDate(year, month, day) {
   ) {
     return null;
   }
+  return date.toISOString().slice(0, 10);
+}
+
+function timestampToIsoDate(timestamp) {
+  const value = Number(timestamp || 0);
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
   return date.toISOString().slice(0, 10);
 }
 

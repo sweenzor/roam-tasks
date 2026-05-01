@@ -5,6 +5,7 @@ import {
   ensureTodoString,
   extractBlockRefs,
   extractTags,
+  mergePathRelations,
   normalizeTasks,
   parseRoamDate,
   taskStringWithStatus,
@@ -41,25 +42,43 @@ test("updates task text with the current marker", () => {
 });
 
 test("normalizes rows into sorted tasks with metadata", () => {
+  const createdApr29 = Date.UTC(2026, 3, 29, 12);
+  const createdApr30 = Date.UTC(2026, 3, 30, 12);
+  const completedMay1 = Date.UTC(2026, 4, 1, 12);
   const tasks = normalizeTasks([
-    ["abc123", "{{[[TODO]]}} Send invoice [[May 1st, 2026]] #admin", "April 30th, 2026", "pageabc12", 1, 2],
-    ["older1", "{{[[TODO]]}} Older task", "January 1st, 2025", "pageold12", 1, 2],
-    ["gone01", "{{[[Abandoned]]}} Skip this [[Abandoned]] #Abandoned", "Projects", "pagegone1", 1, 3],
+    ["abc123", "{{[[TODO]]}} Send invoice [[May 1st, 2026]] #admin", "April 30th, 2026", "pageabc12", createdApr29, 2],
+    ["older1", "{{[[TODO]]}} Older task", "January 1st, 2025", "pageold12", createdApr30, 2],
+    ["done01", "{{[[DONE]]}} Finished work", "Projects", "pagedone1", createdApr29, completedMay1],
+    ["gone01", "{{[[Abandoned]]}} Skip this [[Abandoned]] #Abandoned", "Projects", "pagegone1", createdApr29, completedMay1],
     ["def456", "A note mentioning TODO but not a task", "Notes", 1, 2]
   ]);
 
-  assert.equal(tasks.length, 3);
-  assert.equal(tasks[0].uid, "abc123");
-  assert.equal(tasks[0].pageUid, "pageabc12");
-  assert.equal(tasks[0].pageUids["April 30th, 2026"], "pageabc12");
-  assert.equal(tasks[0].dueDate, "2026-05-01");
-  assert.deepEqual(tasks[0].tags, ["admin"]);
-  assert.equal(tasks[1].uid, "older1");
-  assert.equal(tasks[2].uid, "gone01");
-  assert.equal(tasks[2].status, "abandoned");
-  assert.equal(tasks[2].done, true);
-  assert.deepEqual(tasks[2].pages, []);
-  assert.deepEqual(tasks[2].tags, []);
+  assert.equal(tasks.length, 4);
+
+  const invoice = tasks.find((task) => task.uid === "abc123");
+  assert.equal(invoice.pageUid, "pageabc12");
+  assert.equal(invoice.pageUids["April 30th, 2026"], "pageabc12");
+  assert.equal(invoice.createdDate, "2026-04-29");
+  assert.equal(invoice.dueDate, "2026-05-01");
+  assert.deepEqual(invoice.tags, ["admin"]);
+
+  const older = tasks.find((task) => task.uid === "older1");
+  assert.equal(older.createdDate, "2026-04-30");
+  assert.equal(older.dueDate, null);
+
+  const done = tasks.find((task) => task.uid === "done01");
+  assert.equal(done.status, "done");
+  assert.equal(done.done, true);
+  assert.equal(done.completedDate, "2026-05-01");
+  assert.equal(done.abandonedDate, null);
+
+  const abandoned = tasks.find((task) => task.uid === "gone01");
+  assert.equal(abandoned.status, "abandoned");
+  assert.equal(abandoned.done, true);
+  assert.equal(abandoned.completedDate, null);
+  assert.equal(abandoned.abandonedDate, "2026-05-01");
+  assert.deepEqual(abandoned.pages, []);
+  assert.deepEqual(abandoned.tags, []);
 });
 
 test("extracts block refs and Roam hashtag page links", () => {
@@ -68,6 +87,25 @@ test("extracts block refs and Roam hashtag page links", () => {
     "Reporting Startup Losses",
     "admin"
   ]);
+});
+
+test("merges page and tag relations from the parent path", () => {
+  const task = normalizeTasks([
+    ["abc123", "{{[[TODO]]}} Follow up [[Existing]] #TaskTag", "Projects", "pageabc12", 1, 2]
+  ])[0];
+
+  task.breadcrumb = [
+    { uid: "parent1", string: "Staff meeting with [[Acme]] #PathTag" },
+    {
+      uid: "parent2",
+      string: "Budget #[[Path Tag Page]] with [[Existing]] {{[[DONE]]}} [[New Page]]"
+    }
+  ];
+
+  mergePathRelations(task);
+
+  assert.deepEqual(task.pages, ["Existing", "Acme", "Path Tag Page", "New Page"]);
+  assert.deepEqual(task.tags, ["TaskTag", "PathTag", "Path Tag Page"]);
 });
 
 test("parses common Roam date titles", () => {

@@ -2,7 +2,7 @@ const state = {
   graphs: [],
   graph: null,
   tasks: [],
-  view: "inbox",
+  view: "since",
   query: "",
   sort: "recent",
   sinceDate: loadSinceDate(),
@@ -31,8 +31,7 @@ const els = {
     today: document.querySelector("#countToday"),
     overdue: document.querySelector("#countOverdue"),
     upcoming: document.querySelector("#countUpcoming"),
-    since: document.querySelector("#countSince"),
-    done: document.querySelector("#countDone")
+    since: document.querySelector("#countSince")
   }
 };
 
@@ -169,12 +168,9 @@ function render() {
   els.counts.overdue.textContent = counts.overdue;
   els.counts.upcoming.textContent = counts.upcoming;
   els.counts.since.textContent = counts.since;
-  els.counts.done.textContent = counts.done;
 
   const visible = sortTasks(filterTasks(state.tasks), state.sort);
-  els.viewTitle.textContent = state.view === "since"
-    ? `Since ${formatDue(state.sinceDate)}${state.sinceHideDone ? " · Open" : ""}`
-    : viewCopy[state.view].title;
+  els.viewTitle.textContent = viewTitle();
   els.toolActions.classList.toggle("since-active", state.view === "since");
   els.sinceInput.classList.toggle("hidden", state.view !== "since");
   els.sinceDoneFilter.classList.toggle("hidden", state.view !== "since");
@@ -196,13 +192,22 @@ function render() {
   }
 }
 
+function viewTitle() {
+  if (state.view === "since") {
+    return `Since ${formatDue(state.sinceDate)}${state.sinceHideDone ? " · Open" : ""}`;
+  }
+  return viewTitles[state.view] || "Tasks";
+}
+
 function renderTask(task) {
   const node = els.taskTemplate.content.firstElementChild.cloneNode(true);
   node.classList.toggle("done", task.done);
+  node.classList.toggle("completed", task.status === "done");
+  node.classList.toggle("abandoned", task.status === "abandoned");
 
   const check = node.querySelector(".check-button");
   check.disabled = !canWrite();
-  check.title = canWrite() ? "Toggle done" : "This Roam token is read-only";
+  check.title = canWrite() ? (task.done ? "Mark open" : "Mark done") : "This Roam token is read-only";
   check.addEventListener("click", () => updateTask(task, { done: !task.done }));
 
   const title = node.querySelector(".task-title");
@@ -336,8 +341,8 @@ function sortTasks(tasks, mode) {
 }
 
 function compareRecentTasks(a, b) {
-  const aDate = a.dueDate || "";
-  const bDate = b.dueDate || "";
+  const aDate = taskDateIso(a);
+  const bDate = taskDateIso(b);
   if (aDate && bDate && aDate !== bDate) return bDate.localeCompare(aDate);
   if (aDate && !bDate) return -1;
   if (!aDate && bDate) return 1;
@@ -346,26 +351,27 @@ function compareRecentTasks(a, b) {
 
 function getCounts(tasks) {
   const today = todayIso();
+  const openTasks = tasks.filter((task) => !task.done);
   return {
-    inbox: tasks.filter((task) => !task.done).length,
-    today: tasks.filter((task) => !task.done && task.dueDate === today).length,
-    overdue: tasks.filter((task) => !task.done && task.dueDate && task.dueDate < today).length,
-    upcoming: tasks.filter((task) => !task.done && task.dueDate && task.dueDate > today).length,
-    since: tasks.filter((task) => isTaskSinceViewMatch(task)).length,
-    done: tasks.filter((task) => task.done).length
+    inbox: openTasks.length,
+    today: openTasks.filter((task) => task.dueDate === today).length,
+    overdue: openTasks.filter((task) => task.dueDate && task.dueDate < today).length,
+    upcoming: openTasks.filter((task) => task.dueDate && task.dueDate > today).length,
+    since: openTasks.filter((task) => isTaskSince(task, state.sinceDate)).length
   };
 }
 
 function renderTaskMeta(task, meta) {
-  const details = detailChips(task);
-  if (details.length) {
-    const line = metaLine("created");
-    for (const node of details) line.append(node);
+  const dates = dateLine(task);
+  if (dates) meta.append(dates);
+
+  if (task.priority) {
+    const line = metaLine("priority");
+    const priority = chip(`P${task.priority}`);
+    priority.classList.add("priority");
+    line.append(priority);
     meta.append(line);
   }
-
-  const path = pathLine(task);
-  if (path) meta.append(path);
 
   const related = relatedChips(task);
   if (related.length) {
@@ -373,6 +379,33 @@ function renderTaskMeta(task, meta) {
     for (const node of related) line.append(node);
     meta.append(line);
   }
+
+  const path = pathLine(task);
+  if (path) meta.append(path);
+}
+
+function dateLine(task) {
+  const line = document.createElement("div");
+  line.className = "meta-line date-line";
+  appendDateAttribute(line, "created", createdChip(task));
+  appendDateAttribute(line, "due", dueChip(task));
+  appendDateAttribute(
+    line,
+    task.status === "abandoned" ? "abandoned" : "completed",
+    terminalChip(task)
+  );
+  return line.children.length ? line : null;
+}
+
+function appendDateAttribute(line, label, valueNode) {
+  if (!valueNode) return;
+  const item = document.createElement("span");
+  item.className = "date-attribute";
+  const labelNode = document.createElement("span");
+  labelNode.className = "meta-label";
+  labelNode.textContent = label;
+  item.append(labelNode, valueNode);
+  line.append(item);
 }
 
 function metaLine(label) {
@@ -401,39 +434,38 @@ function pathLine(task) {
 
   const line = metaLine("path");
   line.classList.add("path-line");
-  line.tabIndex = 0;
-  line.setAttribute("role", "button");
-  line.setAttribute("aria-expanded", "false");
-  line.title = "Click to expand path";
 
   const values = document.createElement("span");
   values.className = "path-values";
-  for (const node of nodes) values.append(node);
+  nodes.forEach((node, index) => {
+    if (index > 0) {
+      const separator = document.createElement("span");
+      separator.className = "path-separator";
+      separator.textContent = ">";
+      values.append(separator);
+    }
+    values.append(node);
+  });
   line.append(values);
-
-  const toggle = () => {
-    const expanded = !line.classList.contains("expanded");
-    line.classList.toggle("expanded", expanded);
-    line.setAttribute("aria-expanded", expanded ? "true" : "false");
-    line.title = expanded ? "Click to collapse path" : "Click to expand path";
-  };
-
-  line.addEventListener("click", (event) => {
-    toggle();
-  });
-  line.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" && event.key !== " ") return;
-    event.preventDefault();
-    toggle();
-  });
 
   return line;
 }
 
 function pathChip(text) {
-  const node = chip(text);
+  const node = document.createElement("button");
+  node.type = "button";
+  node.className = "meta-chip";
+  node.textContent = text;
   node.classList.add("path-chip", "breadcrumb-chip");
   node.title = text;
+  node.setAttribute("aria-expanded", "false");
+  node.addEventListener("click", () => {
+    const expanded = !node.classList.contains("expanded");
+    node.classList.toggle("expanded", expanded);
+    node.setAttribute("aria-expanded", expanded ? "true" : "false");
+    const line = node.closest(".path-line");
+    line?.classList.toggle("has-expanded", Boolean(line.querySelector(".path-chip.expanded")));
+  });
   return node;
 }
 
@@ -458,20 +490,30 @@ function relatedChips(task) {
   return chips;
 }
 
-function detailChips(task) {
-  const chips = [];
-  if (task.dueDate) {
-    const due = chip(formatDue(task.dueDate));
-    if (task.dueDate === todayIso()) due.classList.add("due-today");
-    if (task.dueDate < todayIso() && !task.done) due.classList.add("overdue");
-    chips.push(due);
-  }
-  if (task.priority) {
-    const priority = chip(`P${task.priority}`);
-    priority.classList.add("priority");
-    chips.push(priority);
-  }
-  return chips;
+function createdChip(task) {
+  const createdDate = task.createdDate || timestampIso(task.createdTime);
+  if (!createdDate) return null;
+  return chip(formatDue(createdDate));
+}
+
+function terminalChip(task) {
+  const terminalDate = task.status === "abandoned"
+    ? task.abandonedDate || timestampIso(task.editedTime)
+    : task.status === "done"
+      ? task.completedDate || timestampIso(task.editedTime)
+      : "";
+  if (!terminalDate) return null;
+  const node = chip(formatDue(terminalDate));
+  node.classList.add(task.status === "abandoned" ? "abandoned-date" : "completed-date");
+  return node;
+}
+
+function dueChip(task) {
+  if (!task.dueDate) return null;
+  const due = chip(formatDue(task.dueDate));
+  if (task.dueDate === todayIso()) due.classList.add("due-today");
+  if (task.dueDate < todayIso() && !task.done) due.classList.add("overdue");
+  return due;
 }
 
 function chip(text) {
@@ -582,10 +624,13 @@ function isTaskSinceViewMatch(task) {
 }
 
 function taskDateIso(task) {
-  if (task.dueDate) return task.dueDate;
-  const timestamp = Number(task.createdTime || task.editedTime || 0);
-  if (!timestamp) return "";
-  return new Date(timestamp).toISOString().slice(0, 10);
+  return task.createdDate || task.dueDate || timestampIso(task.createdTime || task.editedTime);
+}
+
+function timestampIso(timestamp) {
+  const value = Number(timestamp || 0);
+  if (!value) return "";
+  return new Date(value).toISOString().slice(0, 10);
 }
 
 function isRoamDateTitle(value = "") {
@@ -731,23 +776,10 @@ function escapeAttribute(value) {
   return escapeHtml(value).replace(/`/g, "&#96;");
 }
 
-const viewCopy = {
-  inbox: {
-    title: "Inbox"
-  },
-  today: {
-    title: "Today"
-  },
-  overdue: {
-    title: "Overdue"
-  },
-  upcoming: {
-    title: "Upcoming"
-  },
-  since: {
-    title: "Since"
-  },
-  done: {
-    title: "Done"
-  }
+const viewTitles = {
+  inbox: "Inbox",
+  today: "Today",
+  overdue: "Overdue",
+  upcoming: "Upcoming",
+  done: "Done"
 };

@@ -7,6 +7,7 @@ import { homedir } from "node:os";
 import {
   ensureTodoString,
   formatRoamDailyDate,
+  mergePathRelations,
   normalizeTasks,
   taskStringWithStatus,
   taskStringWithText
@@ -21,12 +22,14 @@ const roamApiHost = process.env.ROAM_LOCAL_API_HOST || "127.0.0.1";
 const defaultGraphKey = process.env.ROAM_DEFAULT_GRAPH;
 const expectedApiVersion = "1.1.2";
 
-const taskQuery = `[:find ?uid ?string ?page-title ?page-uid
+const taskQuery = `[:find ?uid ?string ?page-title ?page-uid ?created-time ?edited-time
   :in $ ?needle
   :where
   [?b :block/uid ?uid]
   [?b :block/string ?string]
   [(clojure.string/includes? ?string ?needle)]
+  [(get-else $ ?b :create/time 0) ?created-time]
+  [(get-else $ ?b :edit/time 0) ?edited-time]
   [?b :block/page ?p]
   [?p :node/title ?page-title]
   [?p :block/uid ?page-uid]]`;
@@ -118,9 +121,10 @@ async function handleApi(request, response, url) {
     const includeDone = url.searchParams.get("includeDone") !== "false";
     const rows = await readTaskRows(graph, includeDone);
     const tasks = normalizeTasks(rows);
-    await enrichTaskPageUids(graph, tasks);
     await enrichTaskBlockRefs(graph, tasks);
     await enrichTaskBreadcrumbs(graph, tasks);
+    enrichTaskPathRelations(tasks);
+    await enrichTaskPageUids(graph, tasks);
     sendJson(response, 200, {
       tasks,
       queriedAt: new Date().toISOString()
@@ -243,6 +247,10 @@ async function enrichTaskPageUids(graph, tasks) {
       if (title && pageUids[title]) task.pageUids[title] = pageUids[title];
     }
   }
+}
+
+function enrichTaskPathRelations(tasks) {
+  for (const task of tasks) mergePathRelations(task);
 }
 
 async function enrichTaskBlockRefs(graph, tasks) {
