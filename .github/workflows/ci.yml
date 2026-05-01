@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:coverage
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t roam-tasks:ci .
+
+  roam-help-graph-integration:
+    if: ${{ vars.RUN_ROAM_HELP_GRAPH_INTEGRATION == '1' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run dev &
+      - run: npm run test:integration
+        env:
+          RUN_ROAM_INTEGRATION_TESTS: "1"
+          ROAM_PUBLIC_HELP_GRAPH: ${{ vars.ROAM_PUBLIC_HELP_GRAPH }}
+          ROAM_TASKS_BASE_URL: http://127.0.0.1:5874
+          ROAM_GRAPH: ${{ secrets.ROAM_GRAPH }}
+          ROAM_GRAPH_NICKNAME: ${{ secrets.ROAM_GRAPH_NICKNAME }}
+          ROAM_GRAPH_TYPE: ${{ secrets.ROAM_GRAPH_TYPE }}
+          ROAM_LOCAL_API_TOKEN: ${{ secrets.ROAM_LOCAL_API_TOKEN }}
+          ROAM_LOCAL_API_HOST: ${{ vars.ROAM_LOCAL_API_HOST }}
+          ROAM_LOCAL_API_PORT: ${{ vars.ROAM_LOCAL_API_PORT }}

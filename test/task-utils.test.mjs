@@ -4,7 +4,11 @@ import {
   detectTaskStatus,
   ensureTodoString,
   extractBlockRefs,
+  extractCreatedDate,
+  extractDueDate,
+  extractPriority,
   extractTags,
+  formatRoamDailyDate,
   mergePathRelations,
   normalizeTasks,
   parseRoamDate,
@@ -39,6 +43,7 @@ test("updates task text with the current marker", () => {
     "{{[[Abandoned]]}} New copy"
   );
   assert.equal(taskStringWithText("{{[[TODO]]}} Old", "New copy", true), "{{[[DONE]]}} New copy");
+  assert.equal(taskStringWithText("No marker", "Copy", false), "{{[[TODO]]}} Copy");
 });
 
 test("normalizes rows into sorted tasks with metadata", () => {
@@ -46,6 +51,7 @@ test("normalizes rows into sorted tasks with metadata", () => {
   const createdApr30 = Date.UTC(2026, 3, 30, 12);
   const completedMay1 = Date.UTC(2026, 4, 1, 12);
   const tasks = normalizeTasks([
+    { uid: "objrow1", string: "{{[[TODO]]}} Object row", pageTitle: "May 1st, 2026", pageUid: "objpage", createdTime: 0, editedTime: 1 },
     ["abc123", "{{[[TODO]]}} Send invoice [[May 1st, 2026]] #admin", "April 30th, 2026", "pageabc12", createdApr29, 2],
     ["older1", "{{[[TODO]]}} Older task", "January 1st, 2025", "pageold12", createdApr30, 2],
     ["done01", "{{[[DONE]]}} Finished work", "Projects", "pagedone1", createdApr29, completedMay1],
@@ -53,7 +59,7 @@ test("normalizes rows into sorted tasks with metadata", () => {
     ["def456", "A note mentioning TODO but not a task", "Notes", 1, 2]
   ]);
 
-  assert.equal(tasks.length, 4);
+  assert.equal(tasks.length, 5);
 
   const invoice = tasks.find((task) => task.uid === "abc123");
   assert.equal(invoice.pageUid, "pageabc12");
@@ -108,10 +114,31 @@ test("merges page and tag relations from the parent path", () => {
   assert.deepEqual(task.tags, ["TaskTag", "PathTag", "Path Tag Page"]);
 });
 
-test("parses common Roam date titles", () => {
+test("parses common Roam date titles and edge cases", () => {
   assert.equal(parseRoamDate("May 1st, 2026"), "2026-05-01");
   assert.equal(parseRoamDate("2026-05-01"), "2026-05-01");
   assert.equal(parseRoamDate("05/01/26"), "2026-05-01");
+  assert.equal(parseRoamDate("05/01/2026"), "2026-05-01");
+  assert.equal(parseRoamDate("05/01/70"), "1970-05-01");
+  assert.equal(parseRoamDate("May 1st", 2030), "2030-05-01");
+  assert.equal(parseRoamDate("2026-02-31"), null);
+  assert.equal(parseRoamDate(""), null);
+});
+
+test("extracts due dates, created dates, priority and formatting", () => {
+  assert.equal(extractDueDate("deadline:: [[May 1st, 2026]]"), "2026-05-01");
+  assert.equal(extractDueDate("read docs [[May 2nd, 2026]]"), "2026-05-02");
+  assert.equal(extractDueDate("due:: not-a-date"), null);
+
+  assert.equal(extractCreatedDate(0, "May 1st, 2026"), "2026-05-01");
+  assert.equal(extractCreatedDate("bad", "invalid"), null);
+
+  assert.equal(extractPriority("!!! hotfix"), 1);
+  assert.equal(extractPriority("!! review"), 2);
+  assert.equal(extractPriority("! ping"), 3);
+  assert.equal(extractPriority("no priority"), null);
+
+  assert.equal(formatRoamDailyDate(new Date(Date.UTC(2026, 4, 1))), "05-01-2026");
 });
 
 test("ensures a task marker exists", () => {
