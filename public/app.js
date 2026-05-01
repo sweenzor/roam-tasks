@@ -703,8 +703,8 @@ function safeLinkHref(href) {
 
 function cleanRoamInlineText(value = "") {
   return String(value)
-    .replace(/\{\{\s*\[\[(?:TODO|DONE)\]\]\s*\}\}/gi, "")
-    .replace(/\{\{\s*(?:TODO|DONE)\s*\}\}/gi, "")
+    .replace(/\{\{\s*\[\[(?:TODO|DONE|Abandoned)\]\]\s*\}\}/gi, "")
+    .replace(/\{\{\s*(?:TODO|DONE|Abandoned)\s*\}\}/gi, "")
     .replace(/\[([^\]\n]+)\]\(\[\[([^\]\n]+)\]\]\)/g, "$1")
     .replace(/\[([^\]\n]+)\]\(([^)\n]+)\)/g, "$1")
     .replace(/#\[\[([^\]\n]+)\]\]/g, "#$1")

@@ -8,6 +8,13 @@ const DONE_MARKERS = [
   /\{\{\s*DONE\s*\}\}/i
 ];
 
+const ABANDONED_MARKERS = [
+  /\{\{\s*\[\[Abandoned\]\]\s*\}\}/i,
+  /\{\{\s*Abandoned\s*\}\}/i
+];
+
+const TASK_MARKERS = [...TODO_MARKERS, ...DONE_MARKERS, ...ABANDONED_MARKERS];
+
 const MONTHS = {
   january: 0,
   february: 1,
@@ -25,6 +32,7 @@ const MONTHS = {
 
 export function detectTaskStatus(value = "") {
   const searchable = stripInlineCode(value);
+  if (ABANDONED_MARKERS.some((marker) => marker.test(searchable))) return "abandoned";
   if (DONE_MARKERS.some((marker) => marker.test(searchable))) return "done";
   if (TODO_MARKERS.some((marker) => marker.test(searchable))) return "todo";
   return null;
@@ -36,20 +44,20 @@ export function isTaskString(value = "") {
 
 export function taskStringWithStatus(value = "", done = false) {
   const nextMarker = done ? "{{[[DONE]]}}" : "{{[[TODO]]}}";
-  const oldMarkers = done ? TODO_MARKERS : DONE_MARKERS;
+  const oldMarkers = done ? TODO_MARKERS : [...DONE_MARKERS, ...ABANDONED_MARKERS];
 
   for (const marker of oldMarkers) {
     if (marker.test(value)) return value.replace(marker, nextMarker);
   }
 
-  const anyMarker = [...TODO_MARKERS, ...DONE_MARKERS].find((marker) => marker.test(value));
+  const anyMarker = TASK_MARKERS.find((marker) => marker.test(value));
   if (anyMarker) return value.replace(anyMarker, nextMarker);
   return `${nextMarker} ${value.trim()}`.trim();
 }
 
 export function taskStringWithText(value = "", text = "", done) {
   const status = done === undefined ? detectTaskStatus(value) : done ? "done" : "todo";
-  const marker = status === "done" ? "{{[[DONE]]}}" : "{{[[TODO]]}}";
+  const marker = markerForStatus(status);
   return `${marker} ${text.trim()}`.trim();
 }
 
@@ -96,7 +104,7 @@ export function parseTask({ uid, string, pageTitle, pageUid, createdTime = 0, ed
     raw: string,
     text: cleanText,
     status,
-    done: status === "done",
+    done: status !== "todo",
     pageTitle: pageTitle || "Untitled",
     pageUid: pageUid || null,
     pageUids: pageTitle && pageUid ? { [pageTitle]: pageUid } : {},
@@ -124,7 +132,7 @@ function normalizeTaskRow(row) {
 
 export function cleanTaskText(value = "") {
   let text = value;
-  for (const marker of [...TODO_MARKERS, ...DONE_MARKERS]) {
+  for (const marker of TASK_MARKERS) {
     text = text.replace(marker, "");
   }
   text = text
@@ -237,7 +245,13 @@ function compareTasks(a, b) {
 }
 
 function isStatusTitle(value = "") {
-  return /^(TODO|DONE)$/i.test(value.trim());
+  return /^(TODO|DONE|Abandoned)$/i.test(value.trim());
+}
+
+function markerForStatus(status) {
+  if (status === "done") return "{{[[DONE]]}}";
+  if (status === "abandoned") return "{{[[Abandoned]]}}";
+  return "{{[[TODO]]}}";
 }
 
 function normalizeYear(value) {

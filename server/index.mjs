@@ -210,8 +210,10 @@ async function readTaskRows(graph, includeDone) {
   const rows = [...coerceRows(todo.result)];
 
   if (includeDone) {
-    const done = await roamCall(graph, "q", [taskQuery, "DONE"]);
-    rows.push(...coerceRows(done.result));
+    for (const status of ["DONE", "Abandoned"]) {
+      const done = await roamCall(graph, "q", [taskQuery, status]);
+      rows.push(...coerceRows(done.result));
+    }
   }
 
   return rows;

@@ -57,7 +57,7 @@ Roam tasks are blocks containing Roam's TODO marker:
 {{[[TODO]]}} Send invoice [[May 1st, 2026]] #admin
 ```
 
-The app reads `{{[[TODO]]}}` and `{{[[DONE]]}}` blocks, parses common Roam date links, and updates the original Roam block when you complete, edit, or delete a task.
+The app reads `{{[[TODO]]}}`, `{{[[DONE]]}}`, and `{{[[Abandoned]]}}` blocks, parses common Roam date links, and updates the original Roam block when you complete, edit, or delete a task.
 
 ## Local API Notes
 
