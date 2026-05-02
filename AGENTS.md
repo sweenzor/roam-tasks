@@ -28,8 +28,8 @@ Keep tokens on the server side. Do not store Roam tokens in browser local storag
 
 ## Development
 
-- Run tests with `npm test`.
-- The Roam help-graph integration test is opt-in; run it with `npm run test:integration`.
+- Run tests with `npm test`; it includes the help-graph integration test by default and requires Roam Desktop's Local API/token config.
+- Run only the Roam help-graph integration test with `npm run test:integration`; skip it with `SKIP_ROAM_HELP_GRAPH_INTEGRATION=1 npm test` when Roam Desktop is unavailable.
 - Run the app with `npm run dev`; this launches Electron and starts the server inside the desktop process.
 - For agent browser inspection, use `npm run fallback:docker` and open the printed localhost URL. The fallback creates a worktree-specific Docker Compose project and host port, avoiding fixed-port `localhost:5874` collisions or stale servers from another runtime. Stop that worktree's Compose project with `npm run fallback:docker:down`.
 - Use `npm run server` only for quick manual checks from a normal host shell; it binds the fixed `5874` port and is not the preferred path for in-app browser previews.

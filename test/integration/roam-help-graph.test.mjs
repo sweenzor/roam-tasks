@@ -4,9 +4,9 @@ import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 
 const graph = process.env.ROAM_PUBLIC_HELP_GRAPH || "roam-official-help-graph";
-const runIntegration = process.env.RUN_ROAM_INTEGRATION_TESTS === "1";
+const skipIntegration = process.env.SKIP_ROAM_HELP_GRAPH_INTEGRATION === "1";
 
-(runIntegration ? test : test.skip)("health endpoint works with Roam public help graph", async (context) => {
+(skipIntegration ? test.skip : test)("health endpoint works with Roam public help graph", async (context) => {
   const app = await getAppServer();
   context.after(async () => {
     await app.close();

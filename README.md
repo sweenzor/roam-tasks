@@ -109,22 +109,20 @@ npm run test:coverage
 
 ### Coverage
 
-`npm test` runs the fast local unit and API contract tests without requiring Roam Desktop. `npm run test:coverage` uses Node's built-in coverage runner over that same fast suite.
+`npm test` runs the fast local unit and API contract tests plus the Roam help-graph integration test. The integration test requires Roam Desktop's Local API and a configured token path. `npm run test:coverage` uses Node's built-in coverage runner over the fast suite only.
 
 ### Integration test: Roam public help graph
 
-The Roam help-graph integration test is opt-in. It starts the local app server automatically, calls `GET /api/health?graph=roam-official-help-graph`, and validates the server can resolve the configured graph/token path end-to-end.
+The Roam help-graph integration test runs by default with `npm test`. It starts the local app server automatically, calls `GET /api/health?graph=roam-official-help-graph`, and validates the server can resolve the configured graph/token path end-to-end.
 
 ```bash
-npm test
 npm run test:integration
+SKIP_ROAM_HELP_GRAPH_INTEGRATION=1 npm test
 ```
 
-To target a different public graph nickname, set `ROAM_PUBLIC_HELP_GRAPH`.
+To run only that integration test, use `npm run test:integration`. To skip it in a local environment without Roam Desktop, set `SKIP_ROAM_HELP_GRAPH_INTEGRATION=1`. To target a different public graph nickname, set `ROAM_PUBLIC_HELP_GRAPH`.
 
-In GitHub Actions, the hosted coverage job runs only the fast local suite. The dedicated integration job runs only when repository variable `RUN_ROAM_HELP_GRAPH_INTEGRATION` is set to `1`.
-
-The integration job is configured for a self-hosted runner (`self-hosted`, `linux`, `roam`) so it can access a real Roam Desktop Local API endpoint.
+GitHub Actions does not run the Roam help-graph integration test because the Roam Desktop Local API is not available there. PR CI runs the hosted fast coverage job and Docker build only.
 
 ## Task Format
 

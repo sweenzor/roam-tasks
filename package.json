@@ -16,9 +16,9 @@
     "prepare": "husky",
     "server": "node server/index.mjs",
     "start": "electron .",
-    "test": "node --test test/*.test.mjs",
+    "test": "node --test test/*.test.mjs test/integration/*.test.mjs",
     "test:coverage": "node --test --experimental-test-coverage test/*.test.mjs",
-    "test:integration": "RUN_ROAM_INTEGRATION_TESTS=1 node --test test/integration/*.test.mjs"
+    "test:integration": "node --test test/integration/*.test.mjs"
   },
   "engines": {
     "node": ">=20"
