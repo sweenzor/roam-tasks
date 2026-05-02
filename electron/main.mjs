@@ -1,10 +1,9 @@
-import { app, BrowserWindow, Menu, dialog, shell } from "electron";
+import { app, BrowserWindow, Menu, dialog, shell, screen } from "electron";
 import { server, startServer } from "../server/index.mjs";
+import { defaultWindowBounds, loadWindowState, minimumWindowSize, watchWindowState } from "./window-state.mjs";
 
 let mainWindow;
 let serverInfo;
-
-const windowWidth = 960;
 
 async function createWindow() {
   if (!serverInfo) {
@@ -15,13 +14,14 @@ async function createWindow() {
     await waitForServer(serverInfo.url);
   }
 
+  const windowState = loadWindowState(app, screen.getAllDisplays());
+
   mainWindow = new BrowserWindow({
     title: "Roam Tasks",
-    width: windowWidth,
-    height: 860,
-    minWidth: windowWidth,
-    maxWidth: windowWidth,
-    minHeight: 640,
+    ...defaultWindowBounds,
+    ...windowState.bounds,
+    minWidth: minimumWindowSize.width,
+    minHeight: minimumWindowSize.height,
     backgroundColor: "#171a18",
     show: false,
     webPreferences: {
@@ -30,13 +30,16 @@ async function createWindow() {
       sandbox: true
     }
   });
+  watchWindowState(app, mainWindow);
 
   mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedUrl) => {
     console.error(`Failed to load ${validatedUrl}: ${errorDescription} (${errorCode})`);
   });
 
   mainWindow.once("ready-to-show", () => {
+    if (windowState.isMaximized) mainWindow.maximize();
     mainWindow.show();
+    if (windowState.isFullScreen) mainWindow.setFullScreen(true);
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
