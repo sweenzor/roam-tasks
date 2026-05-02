@@ -190,7 +190,7 @@ async function refreshTasks(options = {}) {
 
 function render() {
   const writable = canWrite();
-  els.addForm.classList.toggle("hidden", !state.graphs.length);
+  els.addForm.classList.add("hidden");
   els.addForm.querySelectorAll("input, button").forEach((control) => {
     control.disabled = !writable || !state.graphs.length;
     control.title = writable ? "" : "This Roam token is read-only";
