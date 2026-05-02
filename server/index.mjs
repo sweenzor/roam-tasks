@@ -69,23 +69,104 @@ const mimeTypes = {
   ".ico": "image/x-icon"
 };
 
-export const server = createServer(async (request, response) => {
-  try {
-    const url = new URL(request.url ?? "/", `http://${request.headers.host}`);
+export function createAppHandler(options = {}) {
+  const context = createRuntime(options);
+  return async function appHandler(request, response) {
+    try {
+      const url = new URL(request.url ?? "/", `http://${request.headers.host}`);
 
-    if (url.pathname.startsWith("/api/")) {
-      await handleApi(request, response, url);
-      return;
+      if (url.pathname.startsWith("/api/")) {
+        validateApiRequest(request, url);
+        await handleApi(request, response, url, context);
+        return;
+      }
+
+      await serveStatic(response, url.pathname, context);
+    } catch (error) {
+      sendJson(response, error.statusCode || 500, {
+        error: error.message || "Unexpected server error",
+        code: error.code || "SERVER_ERROR"
+      });
     }
+  };
+}
 
-    await serveStatic(response, url.pathname);
-  } catch (error) {
-    sendJson(response, error.statusCode || 500, {
-      error: error.message || "Unexpected server error",
-      code: error.code || "SERVER_ERROR"
-    });
+export function createAppServer(options = {}) {
+  return createServer(createAppHandler(options));
+}
+
+export const server = createAppServer();
+
+function createRuntime(options = {}) {
+  return {
+    publicDir: options.publicDir || publicDir,
+    roamApiHost: options.roamApiHost || roamApiHost,
+    getConfiguredGraphs: options.getConfiguredGraphs || getConfiguredGraphs,
+    getRoamPort: options.getRoamPort || getRoamPort,
+    getTokenInfo: options.getTokenInfo || getTokenInfo,
+    roamCall: options.roamCall || roamCall
+  };
+}
+
+function validateApiRequest(request, url) {
+  if (!isMutationMethod(request.method)) return;
+
+  if (!isLocalHost(request.headers.host)) {
+    throw forbidden("Write requests are only accepted from localhost.");
   }
-});
+
+  const origin = headerValue(request.headers.origin);
+  if (origin && normalizeOrigin(origin) !== url.origin) {
+    throw forbidden("Write requests must come from the app origin.");
+  }
+
+  const fetchSite = headerValue(request.headers["sec-fetch-site"]).toLowerCase();
+  if (fetchSite && !["same-origin", "same-site", "none"].includes(fetchSite)) {
+    throw forbidden("Cross-site write requests are not allowed.");
+  }
+
+  if (!isJsonContentType(request.headers["content-type"])) {
+    throw unsupportedMediaType("Write requests must use application/json.");
+  }
+}
+
+function isMutationMethod(method = "") {
+  return ["POST", "PATCH", "DELETE"].includes(method.toUpperCase());
+}
+
+function isLocalHost(hostHeader = "") {
+  const host = headerValue(hostHeader).trim().toLowerCase();
+  if (!host) return false;
+
+  const hostname = host.startsWith("[")
+    ? host.slice(1, host.indexOf("]"))
+    : host.split(":")[0];
+
+  return hostname === "localhost" || hostname === "::1" || /^127(?:\.\d{1,3}){3}$/.test(hostname);
+}
+
+function normalizeOrigin(origin) {
+  try {
+    return new URL(origin).origin;
+  } catch {
+    return "";
+  }
+}
+
+function isJsonContentType(contentType) {
+  const type = headerValue(contentType).split(";")[0].trim().toLowerCase();
+  return type === "application/json" || type.endsWith("+json");
+}
+
+function headerValue(value) {
+  if (Array.isArray(value)) return value[0] || "";
+  return value || "";
+}
+
+function assertGraphCanWrite(graph) {
+  if (String(graph.accessLevel || "").toLowerCase() !== "read-only") return;
+  throw forbidden("This Roam token is read-only.");
+}
 
 export function startServer({ port = appPort, host = listenHost } = {}) {
   return new Promise((resolve, reject) => {
@@ -127,40 +208,42 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     });
 }
 
-async function handleApi(request, response, url) {
+async function handleApi(request, response, url, context) {
   if (request.method === "GET" && url.pathname === "/api/graphs") {
-    const graphs = await getConfiguredGraphs();
+    const graphs = await context.getConfiguredGraphs();
     const selectedGraph = selectDefaultGraph(graphs);
     sendJson(response, 200, {
       graphs: graphs.map(sanitizeGraph),
       selectedGraph: selectedGraph?.nickname ?? selectedGraph?.name ?? null,
-      port: await getRoamPort(),
-      roamApiHost
+      port: await context.getRoamPort(),
+      roamApiHost: context.roamApiHost
     });
     return;
   }
 
   if (request.method === "GET" && url.pathname === "/api/health") {
-    const graph = await resolveGraph(url.searchParams.get("graph"));
-    const token = await getTokenInfo(graph);
+    const graph = await resolveGraph(context, url.searchParams.get("graph"));
+    const token = await context.getTokenInfo(graph, context);
     sendJson(response, 200, {
       graph: sanitizeGraph(graph),
       token,
-      port: await getRoamPort(),
-      roamApiHost
+      port: await context.getRoamPort(),
+      roamApiHost: context.roamApiHost
     });
     return;
   }
 
   if (request.method === "GET" && url.pathname === "/api/tasks") {
-    const graph = await resolveGraph(url.searchParams.get("graph"));
+    const graph = await resolveGraph(context, url.searchParams.get("graph"));
     const includeDone = url.searchParams.get("includeDone") !== "false";
-    const rows = await readTaskRows(graph, includeDone);
+    const rows = await readTaskRows(context, graph, includeDone);
     const tasks = normalizeTasks(rows);
-    await enrichTaskBlockRefs(graph, tasks);
-    await enrichTaskBreadcrumbs(graph, tasks);
+    await Promise.all([
+      enrichTaskBlockRefs(context, graph, tasks),
+      enrichTaskBreadcrumbs(context, graph, tasks)
+    ]);
     enrichTaskPathRelations(tasks);
-    await enrichTaskPageUids(graph, tasks);
+    await enrichTaskPageUids(context, graph, tasks);
     sendJson(response, 200, {
       tasks,
       queriedAt: new Date().toISOString()
@@ -170,16 +253,16 @@ async function handleApi(request, response, url) {
 
   if (request.method === "POST" && url.pathname === "/api/open") {
     const body = await readJsonBody(request);
-    const graph = await resolveGraph(body.graph);
+    const graph = await resolveGraph(context, body.graph);
 
     if (body.uid) {
-      await roamCall(graph, "ui.mainWindow.openBlock", [{ block: { uid: String(body.uid) } }]);
+      await context.roamCall(graph, "ui.mainWindow.openBlock", [{ block: { uid: String(body.uid) } }], context);
       sendJson(response, 200, { success: true });
       return;
     }
 
     if (body.title) {
-      await roamCall(graph, "ui.mainWindow.openPage", [{ page: { title: String(body.title) } }]);
+      await context.roamCall(graph, "ui.mainWindow.openPage", [{ page: { title: String(body.title) } }], context);
       sendJson(response, 200, { success: true });
       return;
     }
@@ -189,7 +272,8 @@ async function handleApi(request, response, url) {
 
   if (request.method === "POST" && url.pathname === "/api/tasks") {
     const body = await readJsonBody(request);
-    const graph = await resolveGraph(body.graph);
+    const graph = await resolveGraph(context, body.graph);
+    assertGraphCanWrite(graph);
     const text = String(body.text || "").trim();
     if (!text) throw badRequest("Task text is required.");
 
@@ -202,12 +286,12 @@ async function handleApi(request, response, url) {
       };
     }
 
-    const result = await roamCall(graph, "data.block.fromMarkdown", [
+    const result = await context.roamCall(graph, "data.block.fromMarkdown", [
       {
         location,
         "markdown-string": ensureTodoString(text)
       }
-    ]);
+    ], context);
 
     sendJson(response, 201, { result: result.result ?? { uids: [] } });
     return;
@@ -217,8 +301,9 @@ async function handleApi(request, response, url) {
   if (taskUidMatch && request.method === "PATCH") {
     const uid = decodeURIComponent(taskUidMatch[1]);
     const body = await readJsonBody(request);
-    const graph = await resolveGraph(body.graph);
-    const current = body.raw || (await getBlockString(graph, uid));
+    const graph = await resolveGraph(context, body.graph);
+    assertGraphCanWrite(graph);
+    const current = await getBlockString(context, graph, uid);
     let next = current;
 
     if (typeof body.text === "string") {
@@ -228,7 +313,7 @@ async function handleApi(request, response, url) {
       next = taskStringWithStatus(next, body.done);
     }
 
-    await roamCall(graph, "data.block.update", [{ block: { uid, string: next } }]);
+    await context.roamCall(graph, "data.block.update", [{ block: { uid, string: next } }], context);
     sendJson(response, 200, { task: normalizeTasks([[uid, next, body.pageTitle || "", 0, Date.now()]])[0] });
     return;
   }
@@ -236,8 +321,9 @@ async function handleApi(request, response, url) {
   if (taskUidMatch && request.method === "DELETE") {
     const uid = decodeURIComponent(taskUidMatch[1]);
     const body = await readJsonBody(request, true);
-    const graph = await resolveGraph(body.graph);
-    await roamCall(graph, "data.block.delete", [{ block: { uid } }]);
+    const graph = await resolveGraph(context, body.graph);
+    assertGraphCanWrite(graph);
+    await context.roamCall(graph, "data.block.delete", [{ block: { uid } }], context);
     sendJson(response, 200, { success: true });
     return;
   }
@@ -245,28 +331,22 @@ async function handleApi(request, response, url) {
   sendJson(response, 404, { error: "Unknown API route." });
 }
 
-async function readTaskRows(graph, includeDone) {
-  const todo = await roamCall(graph, "q", [taskQuery, "TODO"]);
-  const rows = [...coerceRows(todo.result)];
-
-  if (includeDone) {
-    for (const status of ["DONE", "Abandoned"]) {
-      const done = await roamCall(graph, "q", [taskQuery, status]);
-      rows.push(...coerceRows(done.result));
-    }
-  }
-
-  return rows;
+async function readTaskRows(context, graph, includeDone) {
+  const statuses = includeDone ? ["TODO", "DONE", "Abandoned"] : ["TODO"];
+  const results = await Promise.all(
+    statuses.map((status) => context.roamCall(graph, "q", [taskQuery, status], context))
+  );
+  return results.flatMap((result) => coerceRows(result.result));
 }
 
-async function getBlockString(graph, uid) {
-  const result = await roamCall(graph, "q", [uidQuery, uid]);
+async function getBlockString(context, graph, uid) {
+  const result = await context.roamCall(graph, "q", [uidQuery, uid], context);
   const row = coerceRows(result.result)[0];
   if (!row?.[0]) throw notFound("Could not find that Roam block.");
   return row[0];
 }
 
-async function enrichTaskPageUids(graph, tasks) {
+async function enrichTaskPageUids(context, graph, tasks) {
   const titles = new Set();
 
   for (const task of tasks) {
@@ -276,7 +356,7 @@ async function enrichTaskPageUids(graph, tasks) {
     }
   }
 
-  const pageUids = await resolvePageUids(graph, [...titles]);
+  const pageUids = await resolvePageUids(context, graph, [...titles]);
   for (const task of tasks) {
     task.pageUids = { ...(task.pageUids || {}) };
     for (const title of [task.pageTitle, ...(task.pages || []), ...(task.tags || [])]) {
@@ -289,7 +369,7 @@ function enrichTaskPathRelations(tasks) {
   for (const task of tasks) mergePathRelations(task);
 }
 
-async function enrichTaskBlockRefs(graph, tasks) {
+async function enrichTaskBlockRefs(context, graph, tasks) {
   const uids = new Set();
 
   for (const task of tasks) {
@@ -298,7 +378,7 @@ async function enrichTaskBlockRefs(graph, tasks) {
     }
   }
 
-  const blockStrings = await resolveBlockStrings(graph, [...uids]);
+  const blockStrings = await resolveBlockStrings(context, graph, [...uids]);
   for (const task of tasks) {
     task.blockStrings = { ...(task.blockStrings || {}) };
     for (const uid of task.blockRefs || []) {
@@ -307,17 +387,17 @@ async function enrichTaskBlockRefs(graph, tasks) {
   }
 }
 
-async function resolveBlockStrings(graph, uids) {
+async function resolveBlockStrings(context, graph, uids) {
   if (!uids.length) return {};
 
   try {
-    const response = await roamCall(graph, "q", [blockStringQuery, uids]);
+    const response = await context.roamCall(graph, "q", [blockStringQuery, uids], context);
     return Object.fromEntries(coerceRows(response.result).filter((row) => row[0] && row[1]));
   } catch {
     const entries = await Promise.all(
       uids.map(async (uid) => {
         try {
-          return [uid, await getBlockString(graph, uid)];
+          return [uid, await getBlockString(context, graph, uid)];
         } catch {
           return null;
         }
@@ -327,7 +407,7 @@ async function resolveBlockStrings(graph, uids) {
   }
 }
 
-async function enrichTaskBreadcrumbs(graph, tasks) {
+async function enrichTaskBreadcrumbs(context, graph, tasks) {
   const maxDepth = 6;
   const parentByChild = new Map();
   const seen = new Set();
@@ -337,7 +417,7 @@ async function enrichTaskBreadcrumbs(graph, tasks) {
     const nextFrontier = [];
     for (const uid of frontier) seen.add(uid);
 
-    const parents = await resolveDirectParents(graph, frontier);
+    const parents = await resolveDirectParents(context, graph, frontier);
     for (const parent of parents) {
       if (!parentByChild.has(parent.childUid)) parentByChild.set(parent.childUid, parent);
       if (!seen.has(parent.uid)) nextFrontier.push(parent.uid);
@@ -363,11 +443,11 @@ async function enrichTaskBreadcrumbs(graph, tasks) {
   }
 }
 
-async function resolveDirectParents(graph, childUids) {
+async function resolveDirectParents(context, graph, childUids) {
   if (!childUids.length) return [];
 
   try {
-    const response = await roamCall(graph, "q", [directParentQuery, childUids]);
+    const response = await context.roamCall(graph, "q", [directParentQuery, childUids], context);
     return coerceRows(response.result)
       .filter((row) => row[0] && row[1] && row[2])
       .map((row) => ({
@@ -380,20 +460,20 @@ async function resolveDirectParents(graph, childUids) {
   }
 }
 
-async function resolvePageUids(graph, titles) {
+async function resolvePageUids(context, graph, titles) {
   if (!titles.length) return {};
 
   try {
-    const response = await roamCall(graph, "q", [pageUidQuery, titles]);
+    const response = await context.roamCall(graph, "q", [pageUidQuery, titles], context);
     return Object.fromEntries(coerceRows(response.result).filter((row) => row[0] && row[1]));
   } catch {
     const entries = await Promise.all(
       titles.map(async (title) => {
         try {
-          const response = await roamCall(graph, "q", [
+          const response = await context.roamCall(graph, "q", [
             "[:find ?uid :in $ ?title :where [?p :node/title ?title] [?p :block/uid ?uid]]",
             title
-          ]);
+          ], context);
           const uid = coerceRows(response.result)[0]?.[0];
           return uid ? [title, uid] : null;
         } catch {
@@ -405,10 +485,10 @@ async function resolvePageUids(graph, titles) {
   }
 }
 
-async function roamCall(graph, action, args = []) {
-  const port = await getRoamPort();
+async function roamCall(graph, action, args = [], context = createRuntime()) {
+  const port = await context.getRoamPort();
   const params = graph.type === "offline" ? "?type=offline" : "";
-  const url = `http://${roamApiHost}:${port}/api/${encodeURIComponent(graph.name)}${params}`;
+  const url = `http://${context.roamApiHost}:${port}/api/${encodeURIComponent(graph.name)}${params}`;
 
   let response;
   try {
@@ -442,10 +522,10 @@ async function roamCall(graph, action, args = []) {
   return data;
 }
 
-async function getTokenInfo(graph) {
-  const port = await getRoamPort();
+async function getTokenInfo(graph, context = createRuntime()) {
+  const port = await context.getRoamPort();
   try {
-    const response = await fetch(`http://${roamApiHost}:${port}/api/graphs/tokens/info`, {
+    const response = await fetch(`http://${context.roamApiHost}:${port}/api/graphs/tokens/info`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -487,8 +567,8 @@ async function getConfiguredGraphs() {
   return dedupeGraphs(graphs);
 }
 
-async function resolveGraph(key) {
-  const graphs = await getConfiguredGraphs();
+async function resolveGraph(context, key) {
+  const graphs = await context.getConfiguredGraphs();
   if (graphs.length === 0) {
     throw badRequest(
       "No Roam graph is configured. Run `npx @roam-research/roam-mcp connect` or set ROAM_GRAPH and ROAM_LOCAL_API_TOKEN."
@@ -557,13 +637,14 @@ function coerceRows(result) {
   return result.filter(Array.isArray);
 }
 
-async function serveStatic(response, pathname) {
+async function serveStatic(response, pathname, context) {
+  const staticDir = context.publicDir;
   const requestPath = pathname === "/" ? "/index.html" : pathname;
   const decoded = decodeURIComponent(requestPath);
   const normalized = normalize(decoded).replace(/^(\.\.[/\\])+/, "");
-  const filePath = join(publicDir, normalized);
+  const filePath = join(staticDir, normalized);
 
-  if (!filePath.startsWith(publicDir)) {
+  if (!filePath.startsWith(staticDir)) {
     sendJson(response, 403, { error: "Forbidden" });
     return;
   }
@@ -578,7 +659,7 @@ async function serveStatic(response, pathname) {
     });
     createReadStream(filePath).pipe(response);
   } catch {
-    const indexPath = join(publicDir, "index.html");
+    const indexPath = join(staticDir, "index.html");
     response.writeHead(200, {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "no-store"
@@ -625,6 +706,20 @@ function badRequest(message) {
   const error = new Error(message);
   error.statusCode = 400;
   error.code = "BAD_REQUEST";
+  return error;
+}
+
+function forbidden(message) {
+  const error = new Error(message);
+  error.statusCode = 403;
+  error.code = "FORBIDDEN";
+  return error;
+}
+
+function unsupportedMediaType(message) {
+  const error = new Error(message);
+  error.statusCode = 415;
+  error.code = "UNSUPPORTED_MEDIA_TYPE";
   return error;
 }
 

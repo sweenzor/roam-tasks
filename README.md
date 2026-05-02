@@ -82,7 +82,7 @@ Then open the URL printed by the script. Each worktree gets its own Docker Compo
 ROAM_TASKS_PORT=5874 npm run fallback:docker
 ```
 
-This is a fallback for agents that need to inspect the app in a normal browser when the Electron GUI is not available. Docker runs the web server only; it does not run Electron. The compose file mounts `~/.roam-tools.json` and `~/.roam-local-api.json` read-only into the container and sets `ROAM_LOCAL_API_HOST=host.docker.internal` so the container can reach Roam Desktop on the host.
+This is a fallback for agents that need to inspect the app in a normal browser when the Electron GUI is not available. Docker runs the web server only; it does not run Electron. The compose file binds the app to `127.0.0.1`, mounts `~/.roam-tools.json` and `~/.roam-local-api.json` read-only into the container, and sets `ROAM_LOCAL_API_HOST=host.docker.internal` so the container can reach Roam Desktop on the host.
 
 Stop the fallback container with:
 
@@ -101,20 +101,20 @@ npm run test:coverage
 
 ### Coverage
 
-`npm run test:coverage` uses Node's built-in coverage runner and currently targets full coverage for `server/task-utils.mjs`.
+`npm test` runs the fast local unit and API contract tests without requiring Roam Desktop. `npm run test:coverage` uses Node's built-in coverage runner over that same fast suite.
 
 ### Integration test: Roam public help graph
 
-The Roam help-graph integration test runs by default as part of `npm test`. It starts the local app server automatically, calls `GET /api/health?graph=roam-official-help-graph`, and validates the server can resolve the configured graph/token path end-to-end.
+The Roam help-graph integration test is opt-in. It starts the local app server automatically, calls `GET /api/health?graph=roam-official-help-graph`, and validates the server can resolve the configured graph/token path end-to-end.
 
 ```bash
 npm test
-RUN_ROAM_INTEGRATION_TESTS=0 npm test
+npm run test:integration
 ```
 
-Set `RUN_ROAM_INTEGRATION_TESTS=0` when you only want the dependency-free unit tests. To target a different public graph nickname, set `ROAM_PUBLIC_HELP_GRAPH`.
+To target a different public graph nickname, set `ROAM_PUBLIC_HELP_GRAPH`.
 
-In GitHub Actions, the hosted coverage job disables this local Roam integration test with `RUN_ROAM_INTEGRATION_TESTS=0`. The dedicated integration job runs only when repository variable `RUN_ROAM_HELP_GRAPH_INTEGRATION` is set to `1`.
+In GitHub Actions, the hosted coverage job runs only the fast local suite. The dedicated integration job runs only when repository variable `RUN_ROAM_HELP_GRAPH_INTEGRATION` is set to `1`.
 
 The integration job is configured for a self-hosted runner (`self-hosted`, `linux`, `roam`) so it can access a real Roam Desktop Local API endpoint.
 

@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 
 const graph = process.env.ROAM_PUBLIC_HELP_GRAPH || "roam-official-help-graph";
-const runIntegration = process.env.RUN_ROAM_INTEGRATION_TESTS !== "0";
+const runIntegration = process.env.RUN_ROAM_INTEGRATION_TESTS === "1";
 
 (runIntegration ? test : test.skip)("health endpoint works with Roam public help graph", async (context) => {
   const app = await getAppServer();

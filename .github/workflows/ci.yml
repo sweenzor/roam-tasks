@@ -15,8 +15,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run test:coverage
-        env:
-          RUN_ROAM_INTEGRATION_TESTS: "0"
 
   docker-build:
     runs-on: ubuntu-latest
