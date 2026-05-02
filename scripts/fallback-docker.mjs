@@ -33,7 +33,7 @@ const composeArgs =
     : ["compose", "-p", projectName, "down", "--remove-orphans", ...extraArgs];
 
 if (command === "up") {
-  console.log(`Open http://localhost:${hostPort}`);
+  console.log(`Open http://127.0.0.1:${hostPort}`);
 } else {
   console.log(`Stopping Docker fallback for ${projectName}`);
 }

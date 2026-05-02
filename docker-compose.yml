@@ -2,7 +2,7 @@ services:
   roam-tasks:
     build: .
     ports:
-      - "${ROAM_TASKS_PORT:-5874}:5874"
+      - "127.0.0.1:${ROAM_TASKS_PORT:-5874}:5874"
     environment:
       HOST: 0.0.0.0
       PORT: 5874

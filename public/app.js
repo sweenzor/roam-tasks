@@ -7,6 +7,7 @@ const state = {
   sort: "recent",
   sinceDate: loadSinceDate(),
   sinceHideDone: loadSinceHideDone(),
+  includeDoneLoaded: false,
   loading: false
 };
 
@@ -46,8 +47,12 @@ async function boot() {
 
 function bindEvents() {
   document.querySelectorAll(".view-button").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", async () => {
       state.view = button.dataset.view;
+      if (shouldLoadDoneTasks() && !state.includeDoneLoaded) {
+        await refreshTasks();
+        return;
+      }
       render();
     });
   });
@@ -71,9 +76,13 @@ function bindEvents() {
   });
 
   els.sinceDoneToggle.checked = state.sinceHideDone;
-  els.sinceDoneToggle.addEventListener("change", () => {
+  els.sinceDoneToggle.addEventListener("change", async () => {
     state.sinceHideDone = els.sinceDoneToggle.checked;
     localStorage.setItem("roamTasksSinceHideDone", state.sinceHideDone ? "true" : "false");
+    if (shouldLoadDoneTasks() && !state.includeDoneLoaded) {
+      await refreshTasks();
+      return;
+    }
     render();
   });
 
@@ -134,16 +143,18 @@ async function loadGraphs() {
   }
 }
 
-async function refreshTasks() {
+async function refreshTasks(options = {}) {
   if (!state.graph) return;
+  const includeDone = options.includeDone ?? shouldLoadDoneTasks();
   setStatus("Syncing", true);
   try {
     const params = new URLSearchParams({
       graph: state.graph,
-      includeDone: "true"
+      includeDone: String(includeDone)
     });
     const data = await api(`/api/tasks?${params}`);
     state.tasks = data.tasks || [];
+    state.includeDoneLoaded = includeDone;
     setStatus("Synced");
   } catch (error) {
     setStatus(error.message, false, true);
@@ -153,6 +164,7 @@ async function refreshTasks() {
 
 function render() {
   const writable = canWrite();
+  els.addForm.classList.toggle("hidden", !state.graphs.length);
   els.addForm.querySelectorAll("input, button").forEach((control) => {
     control.disabled = !writable || !state.graphs.length;
     control.title = writable ? "" : "This Roam token is read-only";
@@ -269,7 +281,6 @@ async function updateTask(task, changes) {
     method: "PATCH",
     body: {
       graph: state.graph,
-      raw: task.raw,
       pageTitle: task.pageTitle,
       ...changes
     }
@@ -621,6 +632,10 @@ function isTaskSince(task, sinceDate) {
 function isTaskSinceViewMatch(task) {
   if (!isTaskSince(task, state.sinceDate)) return false;
   return !(state.sinceHideDone && task.done);
+}
+
+function shouldLoadDoneTasks() {
+  return state.view === "done" || (state.view === "since" && !state.sinceHideDone);
 }
 
 function taskDateIso(task) {
