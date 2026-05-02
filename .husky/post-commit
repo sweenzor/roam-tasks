@@ -10,21 +10,7 @@ if [ "$(uname -s)" != "Darwin" ]; then
   exit 0
 fi
 
-was_running=0
-if pgrep -x "Roam Tasks" >/dev/null 2>&1; then
-  was_running=1
-fi
-
-result_file="$(mktemp "${TMPDIR:-/tmp}/roam-tasks-refresh.XXXXXX")"
-trap 'rm -f "$result_file"' EXIT HUP INT TERM
-
-ROAM_TASKS_GIT_HOOK_NAME=post-commit \
-ROAM_TASKS_GIT_HOOK_BEFORE=HEAD~1 \
-ROAM_TASKS_GIT_HOOK_AFTER=HEAD \
-ROAM_TASKS_REFRESH_APP_RESULT_FILE="$result_file" \
-"$repo/.husky/roam-tasks-refresh-macos-app"
-
-if [ "$was_running" != "1" ]; then
+if ! pgrep -x "Roam Tasks" >/dev/null 2>&1; then
   exit 0
 fi
 
@@ -33,11 +19,7 @@ if [ "${ROAM_TASKS_RESTART_APP_SKIP:-0}" = "1" ]; then
   exit 0
 fi
 
-if [ "$(cat "$result_file" 2>/dev/null || true)" != "built" ]; then
-  exit 0
-fi
-
-echo "Restarting live Roam Tasks.app..."
+echo "Stopping live Roam Tasks.app..."
 
 osascript -e 'tell application "Roam Tasks" to quit' >/dev/null 2>&1 || true
 
@@ -45,5 +27,37 @@ deadline=$(($(date +%s) + 10))
 while pgrep -x "Roam Tasks" >/dev/null 2>&1 && [ "$(date +%s)" -lt "$deadline" ]; do
   sleep 0.2
 done
+
+if pgrep -x "Roam Tasks" >/dev/null 2>&1; then
+  echo "Roam Tasks.app did not quit in time; force stopping it..."
+  pkill -x "Roam Tasks" >/dev/null 2>&1 || true
+
+  deadline=$(($(date +%s) + 5))
+  while pgrep -x "Roam Tasks" >/dev/null 2>&1 && [ "$(date +%s)" -lt "$deadline" ]; do
+    sleep 0.2
+  done
+fi
+
+if pgrep -x "Roam Tasks" >/dev/null 2>&1; then
+  echo "Roam Tasks.app is still running; skipping rebuild."
+  exit 0
+fi
+
+result_file="$(mktemp "${TMPDIR:-/tmp}/roam-tasks-refresh.XXXXXX")"
+refresh_branch="${ROAM_TASKS_REFRESH_APP_BRANCH:-$(git branch --show-current 2>/dev/null || true)}"
+trap 'rm -f "$result_file"' EXIT HUP INT TERM
+
+ROAM_TASKS_GIT_HOOK_NAME=post-commit \
+ROAM_TASKS_GIT_HOOK_BEFORE=HEAD~1 \
+ROAM_TASKS_GIT_HOOK_AFTER=HEAD \
+ROAM_TASKS_REFRESH_APP_BRANCH="$refresh_branch" \
+ROAM_TASKS_REFRESH_APP_RESULT_FILE="$result_file" \
+"$repo/.husky/roam-tasks-refresh-macos-app"
+
+if [ "$(cat "$result_file" 2>/dev/null || true)" = "built" ]; then
+  echo "Relaunching rebuilt Roam Tasks.app..."
+else
+  echo "Relaunching Roam Tasks.app..."
+fi
 
 open "$repo/dist/Roam Tasks.app"

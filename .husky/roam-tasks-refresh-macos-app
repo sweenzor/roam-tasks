@@ -29,7 +29,8 @@ if [ "$(uname -s)" != "Darwin" ]; then
 fi
 
 branch="$(git branch --show-current 2>/dev/null || true)"
-target_branch="${ROAM_TASKS_REFRESH_APP_BRANCH:-main}"
+target_branch="${ROAM_TASKS_REFRESH_APP_BRANCH-main}"
+target_branch_label="${target_branch:-detached HEAD}"
 
 if [ "$branch" != "$target_branch" ]; then
   skip_refresh
@@ -70,7 +71,7 @@ if [ -n "$head" ] && [ -d "$app_bundle" ] && [ -f "$stamp_file" ]; then
   fi
 fi
 
-echo "Refreshing local Roam Tasks.app for $target_branch ($hook_name)..."
+echo "Refreshing local Roam Tasks.app for $target_branch_label ($hook_name)..."
 
 if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
   if [ -n "$before" ] && git rev-parse --verify -q "$before^{commit}" >/dev/null 2>&1; then
