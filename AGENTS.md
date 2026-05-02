@@ -33,3 +33,8 @@ Keep tokens on the server side. Do not store Roam tokens in browser local storag
 - Run the app with `npm run dev`; this launches Electron and starts the server inside the desktop process.
 - Use `npm run fallback:docker` only as a flagged fallback when an agent needs to inspect the app in a normal browser. Open the printed localhost URL, then stop that worktree's Compose project with `npm run fallback:docker:down`.
 - Keep the app fast and dependency-light unless a dependency removes real complexity.
+
+## Pull Requests
+
+- Open full, ready-for-review PRs by default; do not create draft PRs unless the user explicitly asks for a draft.
+- Write polished PR descriptions with a clear summary, relevant implementation notes, and verification performed.
