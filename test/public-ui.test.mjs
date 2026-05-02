@@ -14,3 +14,12 @@ test("renderer only requests completed tasks for views that need them", async ()
   assert.match(script, /includeDone: String\(includeDone\)/);
   assert.doesNotMatch(script, /includeDone: "true"/);
 });
+
+test("renderer persists lightweight UI state across relaunches", async () => {
+  const script = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
+  assert.match(script, /view: loadView\(\)/);
+  assert.match(script, /query: loadQuery\(\)/);
+  assert.match(script, /sort: loadSort\(\)/);
+  assert.match(script, /roamTasksTaskDraft/);
+  assert.match(script, /localStorage\.setItem\(storageKeys\.view, state\.view\)/);
+});

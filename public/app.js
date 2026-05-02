@@ -1,10 +1,20 @@
+const storageKeys = {
+  pageDraft: "roamTasksPageDraft",
+  query: "roamTasksQuery",
+  sinceDate: "roamTasksSinceDate",
+  sinceHideDone: "roamTasksSinceHideDone",
+  sort: "roamTasksSort",
+  taskDraft: "roamTasksTaskDraft",
+  view: "roamTasksView"
+};
+
 const state = {
   graphs: [],
   graph: null,
   tasks: [],
-  view: "since",
-  query: "",
-  sort: "recent",
+  view: loadView(),
+  query: loadQuery(),
+  sort: loadSort(),
   sinceDate: loadSinceDate(),
   sinceHideDone: loadSinceHideDone(),
   includeDoneLoaded: false,
@@ -49,6 +59,7 @@ function bindEvents() {
   document.querySelectorAll(".view-button").forEach((button) => {
     button.addEventListener("click", async () => {
       state.view = button.dataset.view;
+      localStorage.setItem(storageKeys.view, state.view);
       if (shouldLoadDoneTasks() && !state.includeDoneLoaded) {
         await refreshTasks();
         return;
@@ -57,13 +68,17 @@ function bindEvents() {
     });
   });
 
+  els.sortSelect.value = state.sort;
   els.sortSelect.addEventListener("change", () => {
     state.sort = els.sortSelect.value;
+    localStorage.setItem(storageKeys.sort, state.sort);
     render();
   });
 
+  els.searchInput.value = state.query;
   els.searchInput.addEventListener("input", () => {
     state.query = els.searchInput.value.trim().toLowerCase();
+    localStorage.setItem(storageKeys.query, state.query);
     render();
   });
 
@@ -71,14 +86,14 @@ function bindEvents() {
   els.sinceInput.addEventListener("change", () => {
     state.sinceDate = els.sinceInput.value || defaultSinceDate();
     els.sinceInput.value = state.sinceDate;
-    localStorage.setItem("roamTasksSinceDate", state.sinceDate);
+    localStorage.setItem(storageKeys.sinceDate, state.sinceDate);
     render();
   });
 
   els.sinceDoneToggle.checked = state.sinceHideDone;
   els.sinceDoneToggle.addEventListener("change", async () => {
     state.sinceHideDone = els.sinceDoneToggle.checked;
-    localStorage.setItem("roamTasksSinceHideDone", state.sinceHideDone ? "true" : "false");
+    localStorage.setItem(storageKeys.sinceHideDone, state.sinceHideDone ? "true" : "false");
     if (shouldLoadDoneTasks() && !state.includeDoneLoaded) {
       await refreshTasks();
       return;
@@ -87,6 +102,16 @@ function bindEvents() {
   });
 
   els.refreshButton.addEventListener("click", refreshTasks);
+
+  els.taskInput.value = localStorage.getItem(storageKeys.taskDraft) || "";
+  els.taskInput.addEventListener("input", () => {
+    localStorage.setItem(storageKeys.taskDraft, els.taskInput.value);
+  });
+
+  els.pageInput.value = localStorage.getItem(storageKeys.pageDraft) || "";
+  els.pageInput.addEventListener("input", () => {
+    localStorage.setItem(storageKeys.pageDraft, els.pageInput.value);
+  });
 
   els.taskList.addEventListener("click", async (event) => {
     const link = event.target.closest("a[data-roam-title], a[data-roam-uid]");
@@ -117,6 +142,7 @@ function bindEvents() {
     });
 
     els.taskInput.value = "";
+    localStorage.removeItem(storageKeys.taskDraft);
     await refreshTasks();
   });
 
@@ -625,11 +651,25 @@ function defaultSinceDate() {
 }
 
 function loadSinceDate() {
-  return localStorage.getItem("roamTasksSinceDate") || defaultSinceDate();
+  return localStorage.getItem(storageKeys.sinceDate) || defaultSinceDate();
 }
 
 function loadSinceHideDone() {
-  return localStorage.getItem("roamTasksSinceHideDone") === "true";
+  return localStorage.getItem(storageKeys.sinceHideDone) === "true";
+}
+
+function loadView() {
+  const view = localStorage.getItem(storageKeys.view);
+  return ["inbox", "today", "overdue", "upcoming", "since", "done"].includes(view) ? view : "since";
+}
+
+function loadQuery() {
+  return (localStorage.getItem(storageKeys.query) || "").trim().toLowerCase();
+}
+
+function loadSort() {
+  const sort = localStorage.getItem(storageKeys.sort);
+  return ["recent", "due", "page", "updated"].includes(sort) ? sort : "recent";
 }
 
 function isTaskSince(task, sinceDate) {

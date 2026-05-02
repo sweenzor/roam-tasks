@@ -62,6 +62,12 @@ This creates `dist/Roam Tasks.app` using the repo-local Electron install. It doe
 
 To add it to the Dock, open `dist/` in Finder, drag `Roam Tasks.app` into `/Applications`, launch it once, then choose **Options -> Keep in Dock** from its Dock icon. You can also keep it in the Dock directly from `dist/`, but `/Applications` is less fragile if you later move this repo.
 
+### Live Commit Refresh
+
+The Husky hooks refresh `dist/Roam Tasks.app` on `main` after app code changes. If the app is already running when a commit refreshes the bundle, `post-commit` quits and reopens it so the live window picks up the new build. Renderer UI state such as the selected view, search query, sort, Since filters, and quick-add draft is kept in browser storage across the relaunch.
+
+Set `ROAM_TASKS_RESTART_APP_SKIP=1` to rebuild without reopening the running app, or `ROAM_TASKS_REFRESH_APP_SKIP=1` to skip the hook refresh entirely.
+
 ## Web Server Only
 
 ```bash
