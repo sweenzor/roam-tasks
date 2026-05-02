@@ -32,7 +32,7 @@
               <span>Done</span>
             </button>
           </nav>
-          <span id="statusPill" class="status-pill">Idle</span>
+          <button id="refreshButton" class="icon-button sync-button" type="button" title="Refresh tasks" aria-label="Refresh tasks">↻</button>
         </header>
 
         <header class="toolbar">
@@ -43,7 +43,6 @@
           </form>
 
           <div class="tool-actions">
-            <button id="refreshButton" class="icon-button" type="button" title="Refresh">↻</button>
             <input id="searchInput" class="input search-input" autocomplete="off" placeholder="Search" type="search">
             <input id="sinceInput" class="input since-input hidden" title="Show tasks since date" type="date">
             <label id="sinceDoneFilter" class="since-done-filter hidden">

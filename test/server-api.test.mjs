@@ -141,6 +141,44 @@ test("tasks endpoint only fetches completed statuses when requested", async () =
   );
 });
 
+test("tasks endpoint includes direct child bullets as task details", async () => {
+  const handler = appHandler({
+    roamCall: async (_graph, action, args) => {
+      if (action !== "q") return { success: true, result: {} };
+
+      const [query, input] = args;
+      if (input === "TODO") {
+        return {
+          success: true,
+          result: [["todo1", "{{[[TODO]]}} Parent task", "Projects", "project1", 1, 2]]
+        };
+      }
+      if (["DONE", "Abandoned"].includes(input)) return { success: true, result: [] };
+      if (Array.isArray(input) && query.includes("?child-string")) {
+        return {
+          success: true,
+          result: [
+            ["todo1", "child2", "Second detail", 1],
+            ["todo1", "child1", "First detail", 0]
+          ]
+        };
+      }
+      return { success: true, result: [] };
+    }
+  });
+
+  const response = await invoke(handler, {
+    method: "GET",
+    url: "/api/tasks?graph=demo&includeDone=false"
+  });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.json.tasks[0].details, [
+    { uid: "child1", string: "First detail" },
+    { uid: "child2", string: "Second detail" }
+  ]);
+});
+
 function appHandler(options = {}) {
   return createAppHandler({
     getConfiguredGraphs: async () => options.graphs || [writableGraph],

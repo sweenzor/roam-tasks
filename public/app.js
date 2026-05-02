@@ -36,7 +36,6 @@ const els = {
   taskList: document.querySelector("#taskList"),
   taskTemplate: document.querySelector("#taskTemplate"),
   viewTitle: document.querySelector("#viewTitle"),
-  statusPill: document.querySelector("#statusPill"),
   counts: {
     inbox: document.querySelector("#countInbox"),
     today: document.querySelector("#countToday"),
@@ -162,7 +161,7 @@ async function loadGraphs() {
     state.graph = data.selectedGraph;
 
     els.setupPanel.classList.toggle("hidden", state.graphs.length > 0);
-    setStatus("Idle");
+    setStatus();
   } catch (error) {
     els.setupPanel.classList.remove("hidden");
     setStatus(error.message, false, true);
@@ -172,7 +171,7 @@ async function loadGraphs() {
 async function refreshTasks(options = {}) {
   if (!state.graph) return;
   const includeDone = options.includeDone ?? shouldLoadDoneTasks();
-  setStatus("Syncing", true);
+  setStatus("Refreshing", true);
   try {
     const params = new URLSearchParams({
       graph: state.graph,
@@ -181,7 +180,7 @@ async function refreshTasks(options = {}) {
     const data = await api(`/api/tasks?${params}`);
     state.tasks = data.tasks || [];
     state.includeDoneLoaded = includeDone;
-    setStatus("Synced");
+    setStatus();
   } catch (error) {
     setStatus(error.message, false, true);
   }
@@ -329,7 +328,7 @@ async function openRoamTarget({ title, uid, fallbackHref }) {
         uid
       }
     });
-    setStatus("Opened");
+    setStatus();
   } catch (error) {
     if (fallbackHref) window.location.href = fallbackHref;
     setStatus(error.message, false, true);
@@ -352,7 +351,8 @@ function filterTasks(tasks) {
       task.pageTitle,
       ...(task.tags || []),
       ...(task.pages || []),
-      ...(task.breadcrumb || []).map((parent) => parent.string)
+      ...(task.breadcrumb || []).map((parent) => parent.string),
+      ...(task.details || []).map((detail) => detail.string)
     ]
       .join(" ")
       .toLowerCase();
@@ -419,6 +419,9 @@ function renderTaskMeta(task, meta) {
 
   const path = pathLine(task);
   if (path) meta.append(path);
+
+  const detail = detailLine(task);
+  if (detail) meta.append(detail);
 }
 
 function dateLine(task) {
@@ -470,10 +473,10 @@ function pathLine(task) {
   if (!nodes.length) return null;
 
   const line = metaLine("path");
-  line.classList.add("path-line");
+  line.classList.add("path-line", "expandable-line");
 
   const values = document.createElement("span");
-  values.className = "path-values";
+  values.className = "path-values expandable-values";
   nodes.forEach((node, index) => {
     if (index > 0) {
       const separator = document.createElement("span");
@@ -488,12 +491,33 @@ function pathLine(task) {
   return line;
 }
 
+function detailLine(task) {
+  const details = task.details || [];
+  if (!details.length) return null;
+
+  const line = metaLine("detail");
+  line.classList.add("detail-line", "expandable-line");
+
+  const values = document.createElement("span");
+  values.className = "detail-values expandable-values";
+  for (const detail of details) {
+    values.append(expandableChip(detail.string, detail.uid, { chipClass: "detail-chip" }));
+  }
+  line.append(values);
+
+  return line;
+}
+
 function pathChip(text, fallbackText = "", options = {}) {
+  return expandableChip(text, fallbackText, { ...options, chipClass: "path-chip" });
+}
+
+function expandableChip(text, fallbackText = "", options = {}) {
   const label = cleanRoamInlineText(text) || fallbackText;
   const node = document.createElement("button");
   node.type = "button";
   node.className = "meta-chip";
-  node.classList.add("path-chip", "breadcrumb-chip");
+  node.classList.add(options.chipClass, "breadcrumb-chip", "expandable-chip");
   if (options.pageLink) {
     const strong = document.createElement("strong");
     strong.className = "path-page-link";
@@ -505,11 +529,18 @@ function pathChip(text, fallbackText = "", options = {}) {
   node.title = label;
   node.setAttribute("aria-expanded", "false");
   node.addEventListener("click", () => {
+    const line = node.closest(".expandable-line");
     const expanded = !node.classList.contains("expanded");
+    if (expanded) {
+      line?.querySelectorAll(".expandable-chip.expanded").forEach((chip) => {
+        if (chip === node) return;
+        chip.classList.remove("expanded");
+        chip.setAttribute("aria-expanded", "false");
+      });
+    }
     node.classList.toggle("expanded", expanded);
     node.setAttribute("aria-expanded", expanded ? "true" : "false");
-    const line = node.closest(".path-line");
-    line?.classList.toggle("has-expanded", Boolean(line.querySelector(".path-chip.expanded")));
+    line?.classList.toggle("has-expanded", Boolean(line.querySelector(".expandable-chip.expanded")));
   });
   return node;
 }
@@ -529,7 +560,7 @@ function relatedChips(task) {
     if (seen.has(tag) || seen.has(`#${tag}`)) continue;
     seen.add(tag);
     seen.add(`#${tag}`);
-    chips.push(pageChip(`#${tag}`, tag, task.pageUids?.[tag]));
+    chips.push(pageChip(tag, tag, task.pageUids?.[tag]));
   }
 
   return chips;
@@ -596,10 +627,12 @@ function renderEmpty(message) {
   els.taskList.append(empty);
 }
 
-function setStatus(message, busy = false, isError = false) {
-  els.statusPill.textContent = message;
-  els.statusPill.classList.toggle("busy", busy);
-  els.statusPill.classList.toggle("error", isError);
+function setStatus(message = "", busy = false, isError = false) {
+  const label = busy && message ? `${message} tasks` : "Refresh tasks";
+  els.refreshButton.title = isError ? message : label;
+  els.refreshButton.setAttribute("aria-label", isError ? `${label}. ${message}` : label);
+  els.refreshButton.classList.toggle("busy", busy);
+  els.refreshButton.classList.toggle("error", isError);
 }
 
 async function api(path, options = {}) {
@@ -655,7 +688,8 @@ function loadSinceDate() {
 }
 
 function loadSinceHideDone() {
-  return localStorage.getItem(storageKeys.sinceHideDone) === "true";
+  const storedValue = localStorage.getItem(storageKeys.sinceHideDone);
+  return storedValue === null ? true : storedValue === "true";
 }
 
 function loadView() {

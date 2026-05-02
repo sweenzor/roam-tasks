@@ -25,3 +25,9 @@ test("renderer persists lightweight UI state across relaunches", async () => {
   assert.match(script, /roamTasksTaskDraft/);
   assert.match(script, /localStorage\.setItem\(storageKeys\.view, state\.view\)/);
 });
+
+test("since view defaults to hiding completed tasks", async () => {
+  const script = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
+  assert.match(script, /function loadSinceHideDone\(\)/);
+  assert.match(script, /return storedValue === null \? true : storedValue === "true"/);
+});

@@ -68,27 +68,21 @@ The Husky hooks refresh `dist/Roam Tasks.app` on `main` after app code changes. 
 
 Set `ROAM_TASKS_RESTART_APP_SKIP=1` to rebuild without reopening the running app, or `ROAM_TASKS_REFRESH_APP_SKIP=1` to skip the hook refresh entirely.
 
-## Web Server Only
-
-```bash
-npm run server
-```
-
-Then open `http://localhost:5874`. This is useful for quick browser debugging, but the normal app runtime is Electron.
-
-## Flagged Browser Fallback
+## Browser Debugging
 
 ```bash
 npm run fallback:docker
 ```
 
-Then open the URL printed by the script. Each worktree gets its own Docker Compose project name and a stable default host port derived from the worktree path, so multiple worktrees can run at the same time. To choose a port explicitly, run:
+Then open the URL printed by the script. Each worktree gets its own Docker Compose project name and a stable default host port derived from the worktree path, so multiple worktrees can run at the same time.
+
+Use this path when an agent needs to inspect the app in a normal or in-app browser. It avoids fixed-port `localhost:5874` collisions and keeps browser previews tied to the current worktree. Docker runs the web server only; it does not run Electron. The compose file binds the app to `127.0.0.1`, mounts `~/.roam-tools.json` and `~/.roam-local-api.json` read-only into the container, and sets `ROAM_LOCAL_API_HOST=host.docker.internal` so the container can reach Roam Desktop on the host.
+
+To choose a port explicitly, run:
 
 ```bash
 ROAM_TASKS_PORT=5874 npm run fallback:docker
 ```
-
-This is a fallback for agents that need to inspect the app in a normal browser when the Electron GUI is not available. Docker runs the web server only; it does not run Electron. The compose file binds the app to `127.0.0.1`, mounts `~/.roam-tools.json` and `~/.roam-local-api.json` read-only into the container, and sets `ROAM_LOCAL_API_HOST=host.docker.internal` so the container can reach Roam Desktop on the host.
 
 Stop the fallback container with:
 
@@ -97,6 +91,14 @@ npm run fallback:docker:down
 ```
 
 By default, the app uses the first configured non-help graph. To pin a specific graph, set `ROAM_DEFAULT_GRAPH` in your shell or local `.env` file before starting Docker.
+
+### Web Server Only
+
+```bash
+npm run server
+```
+
+Then open `http://localhost:5874`. This is useful for quick manual checks from a normal host shell, but it uses a fixed port and is not the recommended browser-inspection path for agents or worktree-parallel debugging. The normal app runtime is Electron.
 
 ## Testing
 

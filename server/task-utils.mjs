@@ -116,6 +116,7 @@ export function parseTask({ uid, string, pageTitle, pageUid, createdTime = 0, ed
     blockRefs,
     blockStrings: {},
     breadcrumb: [],
+    details: [],
     createdDate,
     completedDate,
     abandonedDate,

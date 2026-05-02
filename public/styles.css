@@ -204,12 +204,12 @@ select.input {
 }
 
 .tool-actions {
-  grid-template-columns: 34px minmax(0, 1fr) minmax(104px, 128px);
+  grid-template-columns: minmax(0, 1fr) minmax(104px, 128px);
   gap: 6px;
 }
 
 .tool-actions.since-active {
-  grid-template-columns: 34px minmax(0, 1fr) minmax(132px, 148px) max-content minmax(104px, 128px);
+  grid-template-columns: minmax(0, 1fr) minmax(132px, 148px) max-content minmax(104px, 128px);
 }
 
 .task-input {
@@ -226,32 +226,27 @@ select.input {
   width: 100%;
 }
 
-#refreshButton {
+.search-input {
   grid-column: 1;
   grid-row: 1;
 }
 
-.search-input {
+.sort-input {
   grid-column: 2;
   grid-row: 1;
 }
 
-.sort-input {
-  grid-column: 3;
-  grid-row: 1;
-}
-
 .since-input {
-  grid-column: 3;
+  grid-column: 2;
   grid-row: 1;
 }
 
 .tool-actions.since-active .sort-input {
-  grid-column: 5;
+  grid-column: 4;
 }
 
 .since-done-filter {
-  grid-column: 4;
+  grid-column: 3;
   grid-row: 1;
   display: flex;
   align-items: center;
@@ -350,6 +345,29 @@ select.input {
   transform: translateY(-1px);
 }
 
+#refreshButton.busy {
+  border-color: var(--blue);
+}
+
+#refreshButton.busy::before {
+  color: var(--blue);
+  animation: refresh-spin 700ms linear infinite;
+}
+
+#refreshButton.error {
+  border-color: var(--red);
+}
+
+#refreshButton.error::before {
+  color: var(--red);
+}
+
+@keyframes refresh-spin {
+  to {
+    transform: translateY(-1px) rotate(360deg);
+  }
+}
+
 .primary-button:not(:disabled):hover,
 .icon-button:not(:disabled):hover {
   border-color: var(--green);
@@ -377,26 +395,8 @@ code {
   padding: 5px 0 8px;
 }
 
-.status-pill {
+.sync-button {
   flex: 0 0 auto;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 3px 7px;
-  background: var(--panel);
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: lowercase;
-}
-
-.status-pill.busy {
-  border-color: var(--blue);
-  color: var(--blue);
-}
-
-.status-pill.error {
-  border-color: var(--red);
-  color: var(--red);
 }
 
 .task-list {
@@ -598,18 +598,24 @@ code {
   max-width: 52rem;
 }
 
-.path-line {
+.expandable-line {
   display: flex;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 4px;
 }
 
-.path-line .meta-label {
+.expandable-line.has-expanded {
+  align-items: flex-start;
+}
+
+.expandable-line .meta-label {
   line-height: 1.65;
 }
 
-.path-values {
+.expandable-values {
   display: flex;
+  flex: 1 1 auto;
   gap: 5px;
   min-width: 0;
   overflow: hidden;
@@ -617,14 +623,17 @@ code {
   align-items: center;
 }
 
-.path-line .path-chip {
+.expandable-line .expandable-chip {
   flex: 0 1 auto;
   min-width: 0;
-  max-width: min(52rem, 100%);
+  max-width: min(30rem, 100%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: zoom-in;
 }
 
-.path-line .path-page-link {
+.path-page-link {
   color: var(--green);
   font-weight: 700;
 }
@@ -635,13 +644,20 @@ code {
   line-height: 1.5;
 }
 
-.path-line.has-expanded .path-values {
+.expandable-line.has-expanded .expandable-values {
   flex-wrap: wrap;
   overflow: visible;
   white-space: normal;
 }
 
-.path-line .path-chip.expanded {
+.expandable-line.has-expanded .expandable-chip:not(.expanded) {
+  max-width: min(16rem, 100%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.expandable-line .expandable-chip.expanded {
   flex-basis: auto;
   width: fit-content;
   max-width: min(52rem, 100%);
@@ -746,20 +762,20 @@ button.meta-chip:hover {
   }
 
   .tool-actions {
-    grid-template-columns: 34px minmax(0, 1fr) minmax(104px, 124px);
+    grid-template-columns: minmax(0, 1fr) minmax(104px, 124px);
   }
 
   .tool-actions.since-active {
-    grid-template-columns: 34px minmax(0, 1fr) minmax(128px, 142px);
+    grid-template-columns: minmax(0, 1fr) minmax(128px, 142px);
   }
 
   .tool-actions.since-active .since-done-filter {
-    grid-column: 1 / 3;
+    grid-column: 1;
     grid-row: 2;
   }
 
   .tool-actions.since-active .sort-input {
-    grid-column: 3;
+    grid-column: 2;
     grid-row: 2;
   }
 
@@ -806,12 +822,12 @@ button.meta-chip:hover {
   }
 
   .tool-actions {
-    grid-template-columns: 32px minmax(0, 1fr) 102px;
+    grid-template-columns: minmax(0, 1fr) 102px;
     gap: 5px;
   }
 
   .tool-actions.since-active {
-    grid-template-columns: 32px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .tool-actions.since-active .since-input {
@@ -868,10 +884,6 @@ button.meta-chip:hover {
 }
 
 @media (max-width: 420px) {
-  .status-pill {
-    display: none;
-  }
-
   .view-button {
     font-size: 0.72rem;
   }

@@ -54,6 +54,15 @@ const directParentQuery = `[:find ?child-uid ?parent-uid ?parent-string
   [?p :block/uid ?parent-uid]
   [?p :block/string ?parent-string]]`;
 
+const directChildrenQuery = `[:find ?parent-uid ?child-uid ?child-string ?order
+  :in $ [?parent-uid ...]
+  :where
+  [?p :block/uid ?parent-uid]
+  [?p :block/children ?c]
+  [?c :block/uid ?child-uid]
+  [?c :block/string ?child-string]
+  [(get-else $ ?c :block/order 0) ?order]]`;
+
 const pageUidQuery = `[:find ?title ?uid
   :in $ [?title ...]
   :where
@@ -240,7 +249,8 @@ async function handleApi(request, response, url, context) {
     const tasks = normalizeTasks(rows);
     await Promise.all([
       enrichTaskBlockRefs(context, graph, tasks),
-      enrichTaskBreadcrumbs(context, graph, tasks)
+      enrichTaskBreadcrumbs(context, graph, tasks),
+      enrichTaskDetails(context, graph, tasks)
     ]);
     enrichTaskPathRelations(tasks);
     await enrichTaskPageUids(context, graph, tasks);
@@ -440,6 +450,46 @@ async function enrichTaskBreadcrumbs(context, graph, tasks) {
     }
 
     task.breadcrumb = chain.reverse();
+  }
+}
+
+async function enrichTaskDetails(context, graph, tasks) {
+  const children = await resolveDirectChildren(context, graph, tasks.map((task) => task.uid).filter(Boolean));
+  const childrenByParent = new Map();
+
+  for (const child of children) {
+    if (!childrenByParent.has(child.parentUid)) childrenByParent.set(child.parentUid, []);
+    childrenByParent.get(child.parentUid).push({
+      uid: child.uid,
+      string: child.string
+    });
+  }
+
+  for (const task of tasks) {
+    task.details = childrenByParent.get(task.uid) || [];
+  }
+}
+
+async function resolveDirectChildren(context, graph, parentUids) {
+  if (!parentUids.length) return [];
+
+  try {
+    const response = await context.roamCall(graph, "q", [directChildrenQuery, parentUids], context);
+    return coerceRows(response.result)
+      .filter((row) => row[0] && row[1] && row[2])
+      .map((row) => ({
+        parentUid: row[0],
+        uid: row[1],
+        string: row[2],
+        order: Number(row[3]) || 0
+      }))
+      .sort((a, b) => (
+        a.parentUid.localeCompare(b.parentUid) ||
+        a.order - b.order ||
+        a.string.localeCompare(b.string)
+      ));
+  } catch {
+    return [];
   }
 }
 
