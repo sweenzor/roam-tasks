@@ -1,0 +1,73 @@
+hook_name="${ROAM_TASKS_GIT_HOOK_NAME:-$(basename "$0")}"
+repo="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+
+[ -n "$repo" ] || exit 0
+cd "$repo"
+
+if [ "$(uname -s)" != "Darwin" ]; then
+  exit 0
+fi
+
+branch="$(git branch --show-current 2>/dev/null || true)"
+target_branch="${ROAM_TASKS_REFRESH_APP_BRANCH:-main}"
+
+if [ "$branch" != "$target_branch" ]; then
+  exit 0
+fi
+
+if [ "${ROAM_TASKS_REFRESH_APP_SKIP:-0}" = "1" ]; then
+  echo "Skipping Roam Tasks.app refresh because ROAM_TASKS_REFRESH_APP_SKIP=1."
+  exit 0
+fi
+
+if [ ! -f package.json ] || [ ! -f scripts/build-macos-app.mjs ]; then
+  exit 0
+fi
+
+app_bundle="dist/Roam Tasks.app"
+stamp_file="dist/.roam-tasks-app-built-head"
+head="$(git rev-parse --verify -q HEAD 2>/dev/null || true)"
+before="${ROAM_TASKS_GIT_HOOK_BEFORE:-}"
+after="${ROAM_TASKS_GIT_HOOK_AFTER:-HEAD}"
+should_build=1
+
+if [ -n "$before" ] && git rev-parse --verify -q "$before^{commit}" >/dev/null 2>&1; then
+  if git diff --quiet "$before" "$after" -- package.json package-lock.json electron server public scripts/build-macos-app.mjs scripts/build-icons.mjs assets 2>/dev/null; then
+    should_build=0
+  fi
+fi
+
+if [ "$should_build" -eq 0 ] && [ ! -d "$app_bundle" ]; then
+  should_build=1
+fi
+
+if [ "$should_build" -ne 1 ]; then
+  echo "Roam Tasks.app is already fresh for this $hook_name update."
+  exit 0
+fi
+
+if [ -n "$head" ] && [ -d "$app_bundle" ] && [ -f "$stamp_file" ]; then
+  if [ "$(cat "$stamp_file" 2>/dev/null || true)" = "$head" ]; then
+    echo "Roam Tasks.app was already refreshed for HEAD."
+    exit 0
+  fi
+fi
+
+echo "Refreshing local Roam Tasks.app for $target_branch ($hook_name)..."
+
+if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
+  if [ -n "$before" ] && git rev-parse --verify -q "$before^{commit}" >/dev/null 2>&1; then
+    if ! git diff --quiet "$before" "$after" -- package.json package-lock.json 2>/dev/null; then
+      npm ci
+    fi
+  elif [ ! -d node_modules/electron ]; then
+    npm ci
+  fi
+fi
+
+npm run build:mac
+
+if [ -n "$head" ]; then
+  mkdir -p dist
+  printf '%s\n' "$head" > "$stamp_file"
+fi

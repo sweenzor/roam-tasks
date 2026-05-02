@@ -1,0 +1,6 @@
+before="$(git rev-parse --verify -q ORIG_HEAD 2>/dev/null || true)"
+
+ROAM_TASKS_GIT_HOOK_NAME=post-merge \
+ROAM_TASKS_GIT_HOOK_BEFORE="$before" \
+ROAM_TASKS_GIT_HOOK_AFTER=HEAD \
+"$(git rev-parse --show-toplevel)/.husky/roam-tasks-refresh-macos-app"
