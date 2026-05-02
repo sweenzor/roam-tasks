@@ -57,6 +57,34 @@ test("since row matching uses the same completed-task toggle as the count", () =
   );
 });
 
+test("since count can be empty when only completed tasks match and completed tasks are hidden", () => {
+  const completedOnlyTasks = [task("done-new", { createdDate: "2026-04-11", done: true })];
+  const options = {
+    today: "2026-04-12",
+    sinceDate: "2026-04-01",
+    sinceHideDone: true
+  };
+  const visible = completedOnlyTasks.filter((candidate) => isTaskSinceViewMatch(candidate, options));
+  const counts = getTaskCounts(completedOnlyTasks, options);
+
+  assert.deepEqual(visible, []);
+  assert.equal(counts.since, 0);
+});
+
+test("since count shows completed-only matches when completed tasks are included", () => {
+  const completedOnlyTasks = [task("done-new", { createdDate: "2026-04-11", done: true })];
+  const options = {
+    today: "2026-04-12",
+    sinceDate: "2026-04-01",
+    sinceHideDone: false
+  };
+  const visible = completedOnlyTasks.filter((candidate) => isTaskSinceViewMatch(candidate, options));
+  const counts = getTaskCounts(completedOnlyTasks, options);
+
+  assert.deepEqual(visible.map((candidate) => candidate.uid), ["done-new"]);
+  assert.equal(counts.since, 1);
+});
+
 function task(uid, options = {}) {
   return {
     uid,

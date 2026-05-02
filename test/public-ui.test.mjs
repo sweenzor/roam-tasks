@@ -31,3 +31,10 @@ test("since view defaults to hiding completed tasks", async () => {
   assert.match(script, /function loadSinceHideDone\(\)/);
   assert.match(script, /return storedValue === null \? true : storedValue === "true"/);
 });
+
+test("since empty state reflects the completed-task toggle", async () => {
+  const script = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
+  assert.match(script, /function emptyViewMessage\(\)/);
+  assert.match(script, /No open tasks since this date\./);
+  assert.match(script, /No tasks since this date\./);
+});

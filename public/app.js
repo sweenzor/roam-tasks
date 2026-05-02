@@ -231,7 +231,7 @@ function render() {
   }
 
   if (!visible.length) {
-    renderEmpty("No tasks in this view.");
+    renderEmpty(emptyViewMessage());
     return;
   }
 
@@ -245,6 +245,13 @@ function viewTitle() {
     return `Since ${formatDue(state.sinceDate)}${state.sinceHideDone ? " · Open" : ""}`;
   }
   return viewTitles[state.view] || "Tasks";
+}
+
+function emptyViewMessage() {
+  if (state.view === "since") {
+    return state.sinceHideDone ? "No open tasks since this date." : "No tasks since this date.";
+  }
+  return "No tasks in this view.";
 }
 
 function renderTask(task) {
