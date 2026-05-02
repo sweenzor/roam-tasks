@@ -76,7 +76,11 @@ Then open `http://localhost:5874`. This is useful for quick browser debugging, b
 npm run fallback:docker
 ```
 
-Then open `http://localhost:5874`.
+Then open the URL printed by the script. Each worktree gets its own Docker Compose project name and a stable default host port derived from the worktree path, so multiple worktrees can run at the same time. To choose a port explicitly, run:
+
+```bash
+ROAM_TASKS_PORT=5874 npm run fallback:docker
+```
 
 This is a fallback for agents that need to inspect the app in a normal browser when the Electron GUI is not available. Docker runs the web server only; it does not run Electron. The compose file mounts `~/.roam-tools.json` and `~/.roam-local-api.json` read-only into the container and sets `ROAM_LOCAL_API_HOST=host.docker.internal` so the container can reach Roam Desktop on the host.
 
