@@ -1,0 +1,10 @@
+previous="${1:-}"
+current="${2:-HEAD}"
+checkout_type="${3:-0}"
+
+[ "$checkout_type" = "1" ] || exit 0
+
+ROAM_TASKS_GIT_HOOK_NAME=post-checkout \
+ROAM_TASKS_GIT_HOOK_BEFORE="$previous" \
+ROAM_TASKS_GIT_HOOK_AFTER="$current" \
+"$(git rev-parse --show-toplevel)/.husky/roam-tasks-refresh-macos-app"

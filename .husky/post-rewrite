@@ -1,0 +1,18 @@
+case "${1:-}" in
+  rebase|amend)
+    before=""
+    while read -r old _new _rest; do
+      if [ -z "$before" ]; then
+        before="$old"
+      fi
+    done
+    if [ -z "$before" ]; then
+      before="$(git rev-parse --verify -q ORIG_HEAD 2>/dev/null || true)"
+    fi
+
+    ROAM_TASKS_GIT_HOOK_NAME=post-rewrite \
+    ROAM_TASKS_GIT_HOOK_BEFORE="$before" \
+    ROAM_TASKS_GIT_HOOK_AFTER=HEAD \
+    "$(git rev-parse --show-toplevel)/.husky/roam-tasks-refresh-macos-app"
+    ;;
+esac

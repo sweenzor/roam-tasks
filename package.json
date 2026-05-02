@@ -13,6 +13,7 @@
     "electron": "electron .",
     "fallback:docker": "node scripts/fallback-docker.mjs up",
     "fallback:docker:down": "node scripts/fallback-docker.mjs down",
+    "prepare": "husky",
     "server": "node server/index.mjs",
     "start": "electron .",
     "test": "node --test",
@@ -23,6 +24,7 @@
     "node": ">=20"
   },
   "devDependencies": {
-    "electron": "^41.4.0"
+    "electron": "^41.4.0",
+    "husky": "^9.1.7"
   }
 }
