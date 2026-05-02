@@ -1,3 +1,10 @@
+import {
+  getTaskCounts,
+  isTaskSinceViewMatch,
+  taskDateIso,
+  timestampIso
+} from "./task-view-model.js";
+
 const storageKeys = {
   pageDraft: "roamTasksPageDraft",
   query: "roamTasksQuery",
@@ -199,7 +206,11 @@ function render() {
     button.classList.toggle("active", button.dataset.view === state.view);
   }
 
-  const counts = getCounts(state.tasks);
+  const counts = getTaskCounts(state.tasks, {
+    today: todayIso(),
+    sinceDate: state.sinceDate,
+    sinceHideDone: state.sinceHideDone
+  });
   els.counts.inbox.textContent = counts.inbox;
   els.counts.today.textContent = counts.today;
   els.counts.overdue.textContent = counts.overdue;
@@ -339,7 +350,13 @@ function filterTasks(tasks) {
   const today = todayIso();
   return tasks.filter((task) => {
     if (state.view === "done" && !task.done) return false;
-    if (state.view === "since" && !isTaskSinceViewMatch(task)) return false;
+    if (
+      state.view === "since" &&
+      !isTaskSinceViewMatch(task, {
+        sinceDate: state.sinceDate,
+        sinceHideDone: state.sinceHideDone
+      })
+    ) return false;
     if (!["done", "since"].includes(state.view) && task.done) return false;
     if (state.view === "today" && task.dueDate !== today) return false;
     if (state.view === "overdue" && !(task.dueDate && task.dueDate < today)) return false;
@@ -384,18 +401,6 @@ function compareRecentTasks(a, b) {
   if (aDate && !bDate) return -1;
   if (!aDate && bDate) return 1;
   return (b.editedTime || 0) - (a.editedTime || 0) || a.text.localeCompare(b.text);
-}
-
-function getCounts(tasks) {
-  const today = todayIso();
-  const openTasks = tasks.filter((task) => !task.done);
-  return {
-    inbox: openTasks.length,
-    today: openTasks.filter((task) => task.dueDate === today).length,
-    overdue: openTasks.filter((task) => task.dueDate && task.dueDate < today).length,
-    upcoming: openTasks.filter((task) => task.dueDate && task.dueDate > today).length,
-    since: openTasks.filter((task) => isTaskSince(task, state.sinceDate)).length
-  };
 }
 
 function renderTaskMeta(task, meta) {
@@ -706,28 +711,8 @@ function loadSort() {
   return ["recent", "due", "page", "updated"].includes(sort) ? sort : "recent";
 }
 
-function isTaskSince(task, sinceDate) {
-  const date = taskDateIso(task);
-  return Boolean(date && sinceDate && date >= sinceDate);
-}
-
-function isTaskSinceViewMatch(task) {
-  if (!isTaskSince(task, state.sinceDate)) return false;
-  return !(state.sinceHideDone && task.done);
-}
-
 function shouldLoadDoneTasks() {
   return state.view === "done" || (state.view === "since" && !state.sinceHideDone);
-}
-
-function taskDateIso(task) {
-  return task.createdDate || task.dueDate || timestampIso(task.createdTime || task.editedTime);
-}
-
-function timestampIso(timestamp) {
-  const value = Number(timestamp || 0);
-  if (!value) return "";
-  return new Date(value).toISOString().slice(0, 10);
 }
 
 function isRoamDateTitle(value = "") {
