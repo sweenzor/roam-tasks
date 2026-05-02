@@ -624,6 +624,11 @@ code {
   cursor: zoom-in;
 }
 
+.path-line .path-page-link {
+  color: var(--green);
+  font-weight: 700;
+}
+
 .path-separator {
   flex: 0 0 auto;
   color: #647067;
@@ -637,8 +642,9 @@ code {
 }
 
 .path-line .path-chip.expanded {
-  flex-basis: 100%;
-  max-width: 100%;
+  flex-basis: auto;
+  width: fit-content;
+  max-width: min(52rem, 100%);
   overflow: visible;
   text-overflow: clip;
   white-space: normal;

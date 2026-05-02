@@ -423,11 +423,11 @@ function pathLine(task) {
   const includeRootPage = !isDailyNoteTitle(task.pageTitle);
 
   if (includeRootPage) {
-    nodes.push(pathChip(task.pageTitle));
+    nodes.push(pathChip(task.pageTitle, "", { pageLink: true }));
   }
 
   for (const parent of task.breadcrumb || []) {
-    nodes.push(pathChip(cleanRoamInlineText(parent.string) || parent.uid));
+    nodes.push(pathChip(parent.string, parent.uid));
   }
 
   if (!nodes.length) return null;
@@ -451,13 +451,21 @@ function pathLine(task) {
   return line;
 }
 
-function pathChip(text) {
+function pathChip(text, fallbackText = "", options = {}) {
+  const label = cleanRoamInlineText(text) || fallbackText;
   const node = document.createElement("button");
   node.type = "button";
   node.className = "meta-chip";
-  node.textContent = text;
   node.classList.add("path-chip", "breadcrumb-chip");
-  node.title = text;
+  if (options.pageLink) {
+    const strong = document.createElement("strong");
+    strong.className = "path-page-link";
+    strong.textContent = label;
+    node.append(strong);
+  } else {
+    node.innerHTML = renderPathChipText(text) || escapeHtml(label);
+  }
+  node.title = label;
   node.setAttribute("aria-expanded", "false");
   node.addEventListener("click", () => {
     const expanded = !node.classList.contains("expanded");
@@ -744,6 +752,41 @@ function safeLinkHref(href) {
   if (/^(https?:|mailto:|roam:\/\/)/i.test(href)) return href;
   if (href.startsWith("#")) return href;
   return "";
+}
+
+function renderPathChipText(value = "") {
+  const placeholders = [];
+  const stash = (html) => {
+    const token = `@@RTPATHTOKEN${placeholders.length}@@`;
+    placeholders.push(html);
+    return token;
+  };
+  const boldPageLink = (label) => stash(`<strong class="path-page-link">${escapeHtml(label)}</strong>`);
+
+  let source = String(value);
+  source = source
+    .replace(/\{\{\s*\[\[(?:TODO|DONE|Abandoned)\]\]\s*\}\}/gi, "")
+    .replace(/\{\{\s*(?:TODO|DONE|Abandoned)\s*\}\}/gi, "")
+    .replace(/\[([^\]\n]+)\]\(\[\[([^\]\n]+)\]\]\)/g, (_, label) => boldPageLink(label))
+    .replace(/\[([^\]\n]+)\]\(([^)\n]+)\)/g, "$1")
+    .replace(/#\[\[([^\]\n]+)\]\]/g, (_, pageTitle) => boldPageLink(`#${pageTitle}`))
+    .replace(/\[\[([^\]\n]+)\]\]/g, (_, pageTitle) => boldPageLink(pageTitle))
+    .replace(/(^|[\s(])#([A-Za-z0-9_/-]+)/g, (_, prefix, tag) => {
+      return `${prefix}${boldPageLink(`#${tag}`)}`;
+    })
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/~~([^~]+)~~/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/^\s*[-*]\s+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  let html = escapeHtml(source);
+  placeholders.forEach((replacement, index) => {
+    html = html.replaceAll(`@@RTPATHTOKEN${index}@@`, replacement);
+  });
+  return html;
 }
 
 function cleanRoamInlineText(value = "") {
