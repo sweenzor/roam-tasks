@@ -1,18 +1,18 @@
 :root {
   color-scheme: dark;
-  --bg: #171a18;
-  --panel: #1d221f;
-  --panel-2: #242a26;
-  --ink: #edf2ee;
-  --muted: #a2aca5;
-  --line: #333b35;
-  --line-strong: #4a554d;
-  --green: #8cc39b;
-  --green-strong: #b8dec2;
-  --green-soft: #26372b;
-  --red: #e78b84;
-  --amber: #d9bb78;
-  --blue: #96b6dc;
+  --bg: #101010;
+  --panel: #080808;
+  --panel-2: #141414;
+  --ink: #f3f3f3;
+  --muted: #949494;
+  --line: #333333;
+  --line-strong: #4a4a4a;
+  --status: #e7c59a;
+  --status-strong: #f3f3f3;
+  --status-soft: rgb(231 197 154 / 0.12);
+  --red: #e7c59a;
+  --amber: #e7c59a;
+  --blue: #c1c1c1;
   --shadow: 0 1px 0 rgb(255 255 255 / 0.02), 0 10px 24px rgb(0 0 0 / 0.18);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-size: 14px;
@@ -26,7 +26,9 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    linear-gradient(180deg, rgb(140 195 155 / 0.05), transparent 260px),
+    linear-gradient(45deg, transparent calc(50% - 0.5px), rgb(255 255 255 / 0.016) calc(50% - 0.5px) calc(50% + 0.5px), transparent calc(50% + 0.5px)) 0 0 / 16px 16px repeat,
+    linear-gradient(135deg, transparent calc(50% - 0.5px), rgb(255 255 255 / 0.016) calc(50% - 0.5px) calc(50% + 0.5px), transparent calc(50% + 0.5px)) 0 0 / 16px 16px repeat,
+    linear-gradient(180deg, rgb(231 197 154 / 0.045), transparent 260px),
     var(--bg);
   color: var(--ink);
   overflow-x: hidden;
@@ -75,7 +77,7 @@ input:disabled {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 4px;
-  background: #202521;
+  background: #0d0d0d;
   color: var(--ink);
   padding: 0 10px;
   outline: none;
@@ -83,19 +85,19 @@ input:disabled {
 }
 
 .input::placeholder {
-  color: #7f8b83;
+  color: #6f6f6f;
 }
 
 .input:focus {
-  border-color: var(--green);
-  box-shadow: 0 0 0 2px rgb(140 195 155 / 0.18);
+  border-color: var(--amber);
+  box-shadow: 0 0 0 2px rgb(231 197 154 / 0.18);
 }
 
 select.input {
   appearance: none;
   background-image:
-    linear-gradient(45deg, transparent 50%, var(--green) 50%),
-    linear-gradient(135deg, var(--green) 50%, transparent 50%);
+    linear-gradient(45deg, transparent 50%, var(--amber) 50%),
+    linear-gradient(135deg, var(--amber) 50%, transparent 50%);
   background-position:
     calc(100% - 16px) 50%,
     calc(100% - 11px) 50%;
@@ -117,7 +119,7 @@ select.input {
   min-height: 32px;
   border: 1px solid var(--line);
   border-radius: 4px;
-  background: #202521;
+  background: #0d0d0d;
   color: var(--muted);
   display: flex;
   align-items: center;
@@ -147,14 +149,14 @@ select.input {
 .icon-button:focus-visible,
 .check-button:focus-visible,
 .path-chip:focus-visible {
-  outline: 2px solid rgb(140 195 155 / 0.32);
+  outline: 2px solid rgb(231 197 154 / 0.32);
   outline-offset: 1px;
 }
 
 .view-button.active {
-  background: var(--green-soft);
-  border-color: var(--green);
-  color: var(--green-strong);
+  background: rgb(231 197 154 / 0.12);
+  border-color: var(--amber);
+  color: var(--amber);
 }
 
 .view-button strong {
@@ -204,12 +206,12 @@ select.input {
 }
 
 .tool-actions {
-  grid-template-columns: minmax(0, 1fr) minmax(104px, 128px);
+  grid-template-columns: minmax(0, 1fr) max-content minmax(104px, 128px);
   gap: 6px;
 }
 
 .tool-actions.since-active {
-  grid-template-columns: minmax(0, 1fr) minmax(132px, 148px) max-content minmax(104px, 128px);
+  grid-template-columns: minmax(0, 1fr) minmax(132px, 148px) max-content max-content minmax(104px, 128px);
 }
 
 .task-input {
@@ -232,7 +234,7 @@ select.input {
 }
 
 .sort-input {
-  grid-column: 2;
+  grid-column: 3;
   grid-row: 1;
 }
 
@@ -242,12 +244,25 @@ select.input {
 }
 
 .tool-actions.since-active .sort-input {
-  grid-column: 4;
+  grid-column: 5;
 }
 
 .since-done-filter {
   grid-column: 3;
   grid-row: 1;
+}
+
+.compact-filter {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.tool-actions.since-active .compact-filter {
+  grid-column: 4;
+}
+
+.since-done-filter,
+.compact-filter {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -255,18 +270,20 @@ select.input {
   border: 1px solid var(--line);
   border-radius: 4px;
   min-height: 34px;
-  background: #202521;
+  background: #0d0d0d;
   color: var(--muted);
   padding: 0 9px;
   white-space: nowrap;
 }
 
-.since-done-filter:hover {
+.since-done-filter:hover,
+.compact-filter:hover {
   background: var(--panel-2);
   color: var(--ink);
 }
 
-.since-done-filter input {
+.since-done-filter input,
+.compact-filter input {
   appearance: none;
   flex: 0 0 auto;
   width: 24px;
@@ -279,7 +296,8 @@ select.input {
   transition: border-color 120ms ease, background 120ms ease;
 }
 
-.since-done-filter input::after {
+.since-done-filter input::after,
+.compact-filter input::after {
   content: "";
   position: absolute;
   top: 2px;
@@ -291,22 +309,24 @@ select.input {
   transition: transform 120ms ease, background 120ms ease;
 }
 
-.since-done-filter input:checked {
-  background: var(--green-soft);
-  border-color: var(--green);
+.since-done-filter input:checked,
+.compact-filter input:checked {
+  background: var(--status-soft);
+  border-color: var(--status);
 }
 
-.since-done-filter input:checked::after {
+.since-done-filter input:checked::after,
+.compact-filter input:checked::after {
   transform: translateX(10px);
-  background: var(--green-strong);
+  background: var(--status-strong);
 }
 
 .primary-button,
 .icon-button {
   border: 1px solid var(--line);
   border-radius: 4px;
-  background: #202521;
-  color: var(--green);
+  background: #0d0d0d;
+  color: var(--amber);
   display: inline-grid;
   place-items: center;
   text-decoration: none;
@@ -315,9 +335,9 @@ select.input {
 .primary-button {
   width: 34px;
   height: 34px;
-  border-color: var(--green);
-  background: var(--green-soft);
-  color: var(--green-strong);
+  border-color: var(--amber);
+  background: rgb(231 197 154 / 0.12);
+  color: var(--ink);
   font-size: 1.15rem;
 }
 
@@ -339,18 +359,18 @@ select.input {
   inset: 0;
   display: grid;
   place-items: center;
-  color: var(--green);
+  color: var(--amber);
   font-size: 1rem;
   line-height: 1;
   transform: translateY(-1px);
 }
 
 #refreshButton.busy {
-  border-color: var(--blue);
+  border-color: var(--status);
 }
 
 #refreshButton.busy::before {
-  color: var(--blue);
+  color: var(--status);
   animation: refresh-spin 700ms linear infinite;
 }
 
@@ -370,13 +390,13 @@ select.input {
 
 .primary-button:not(:disabled):hover,
 .icon-button:not(:disabled):hover {
-  border-color: var(--green);
-  background: var(--green-soft);
+  border-color: var(--amber);
+  background: rgb(231 197 154 / 0.12);
 }
 
 .setup-panel {
-  border: 1px solid #6d5522;
-  background: #2a2317;
+  border: 1px solid rgb(231 197 154 / 0.48);
+  background: rgb(231 197 154 / 0.1);
   border-radius: 4px;
   padding: 10px;
 }
@@ -401,19 +421,19 @@ code {
 
 .task-list {
   display: grid;
-  gap: 5px;
+  gap: 8px;
 }
 
 .task-row {
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr) 30px;
-  gap: 8px;
+  gap: 12px;
   align-items: start;
-  min-height: 42px;
+  min-height: 56px;
   border: 1px solid var(--line);
   border-radius: 4px;
-  background: rgb(29 34 31 / 0.9);
-  padding: 7px 8px;
+  background: rgb(8 8 8 / 0.9);
+  padding: 12px;
   box-shadow: var(--shadow);
   min-width: 0;
   max-width: 100%;
@@ -424,14 +444,42 @@ code {
   background: var(--panel-2);
 }
 
+.task-list.compact {
+  gap: 3px;
+}
+
+.task-list.compact .task-row {
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 8px;
+  min-height: 0;
+  padding: 7px 10px;
+}
+
+.task-list.compact .task-meta,
+.task-list.compact .task-actions {
+  display: none;
+}
+
+.task-list.compact .task-title {
+  font-weight: 400;
+}
+
+.task-list.compact .task-title strong {
+  font-weight: 400;
+}
+
+.task-list.compact .task-title .roam-page-link {
+  font-weight: 700;
+}
+
 .task-row.done {
   opacity: 0.66;
 }
 
 .task-row.abandoned {
   opacity: 0.62;
-  border-color: rgb(217 187 120 / 0.28);
-  background: rgb(35 31 24 / 0.88);
+  border-color: rgb(231 197 154 / 0.28);
+  background: rgb(231 197 154 / 0.1);
 }
 
 .check-button {
@@ -441,7 +489,7 @@ code {
   margin-top: 1px;
   border: 1px solid var(--line-strong);
   border-radius: 3px;
-  background: #202521;
+  background: #0d0d0d;
   display: grid;
   place-items: center;
   position: relative;
@@ -449,9 +497,9 @@ code {
 }
 
 .done .check-button {
-  background: var(--green-soft);
-  border-color: var(--green);
-  color: var(--green);
+  background: var(--status-soft);
+  border-color: var(--status);
+  color: var(--status);
 }
 
 .completed .check-button::before {
@@ -465,8 +513,8 @@ code {
 }
 
 .abandoned .check-button {
-  background: #2c261a;
-  border-color: rgb(217 187 120 / 0.58);
+  background: rgb(231 197 154 / 0.12);
+  border-color: rgb(231 197 154 / 0.58);
   color: var(--amber);
 }
 
@@ -501,13 +549,13 @@ code {
 }
 
 .task-title.editable:hover {
-  color: var(--green);
+  color: var(--amber);
 }
 
 .task-title a {
-  color: var(--green);
+  color: var(--amber);
   text-decoration: none;
-  border-bottom: 1px solid rgb(140 195 155 / 0.35);
+  border-bottom: 1px solid rgb(231 197 154 / 0.35);
 }
 
 .task-title a:hover {
@@ -528,17 +576,17 @@ code {
 
 .abandoned .task-title {
   color: #aa9672;
-  text-decoration-color: rgb(217 187 120 / 0.7);
+  text-decoration-color: rgb(231 197 154 / 0.7);
   text-decoration-style: dotted;
 }
 
 .abandoned .task-title a {
-  color: #bca575;
-  border-bottom-color: rgb(217 187 120 / 0.35);
+  color: #cdb48e;
+  border-bottom-color: rgb(231 197 154 / 0.35);
 }
 
 .task-meta {
-  margin-top: 5px;
+  margin-top: 8px;
   display: grid;
   gap: 3px;
   color: var(--muted);
@@ -570,7 +618,7 @@ code {
 }
 
 .meta-label {
-  color: #7f8b83;
+  color: #6f6f6f;
   flex: 0 0 auto;
   min-width: 0;
 }
@@ -589,7 +637,7 @@ code {
   white-space: nowrap;
   border: 1px solid var(--line);
   border-radius: 3px;
-  background: #202521;
+  background: #0d0d0d;
   padding: 1px 5px;
   text-align: left;
 }
@@ -634,13 +682,13 @@ code {
 }
 
 .path-page-link {
-  color: var(--green);
+  color: var(--amber);
   font-weight: 700;
 }
 
 .path-separator {
   flex: 0 0 auto;
-  color: #647067;
+  color: #666666;
   line-height: 1.5;
 }
 
@@ -674,38 +722,38 @@ a.meta-chip {
 }
 
 a.meta-chip:hover {
-  color: var(--green);
-  border-color: var(--green);
+  color: var(--amber);
+  border-color: var(--amber);
 }
 
 button.meta-chip:hover {
-  border-color: var(--green);
-  color: var(--green);
+  border-color: var(--amber);
+  color: var(--amber);
 }
 
 .meta-chip.due-today {
   color: var(--blue);
-  border-color: rgb(143 190 246 / 0.45);
+  border-color: rgb(193 193 193 / 0.45);
 }
 
 .meta-chip.overdue {
   color: var(--red);
-  border-color: rgb(255 118 111 / 0.5);
+  border-color: rgb(231 197 154 / 0.5);
 }
 
 .meta-chip.completed-date {
-  color: var(--green-strong);
-  border-color: rgb(140 195 155 / 0.45);
+  color: var(--status-strong);
+  border-color: rgb(231 197 154 / 0.45);
 }
 
 .meta-chip.abandoned-date {
   color: var(--amber);
-  border-color: rgb(217 187 120 / 0.5);
+  border-color: rgb(231 197 154 / 0.5);
 }
 
 .meta-chip.priority {
   color: var(--amber);
-  border-color: rgb(240 200 107 / 0.5);
+  border-color: rgb(231 197 154 / 0.5);
 }
 
 .task-actions {
@@ -730,7 +778,7 @@ button.meta-chip:hover {
   border-radius: 4px;
   padding: 18px;
   color: var(--muted);
-  background: rgb(29 34 31 / 0.76);
+  background: rgb(8 8 8 / 0.76);
   text-align: center;
 }
 
@@ -762,15 +810,20 @@ button.meta-chip:hover {
   }
 
   .tool-actions {
-    grid-template-columns: minmax(0, 1fr) minmax(104px, 124px);
+    grid-template-columns: minmax(0, 1fr) max-content minmax(104px, 124px);
   }
 
   .tool-actions.since-active {
-    grid-template-columns: minmax(0, 1fr) minmax(128px, 142px);
+    grid-template-columns: minmax(0, 1fr) minmax(128px, 142px) max-content;
   }
 
   .tool-actions.since-active .since-done-filter {
     grid-column: 1;
+    grid-row: 2;
+  }
+
+  .tool-actions.since-active .compact-filter {
+    grid-column: 3;
     grid-row: 2;
   }
 
@@ -822,7 +875,7 @@ button.meta-chip:hover {
   }
 
   .tool-actions {
-    grid-template-columns: minmax(0, 1fr) 102px;
+    grid-template-columns: minmax(0, 1fr) max-content 102px;
     gap: 5px;
   }
 
@@ -837,12 +890,18 @@ button.meta-chip:hover {
 
   .tool-actions.since-active .sort-input {
     grid-column: 1 / -1;
-    grid-row: 4;
+    grid-row: 5;
   }
 
   .tool-actions.since-active .since-done-filter {
     grid-column: 1 / -1;
     grid-row: 3;
+    min-height: 32px;
+  }
+
+  .tool-actions.since-active .compact-filter {
+    grid-column: 1 / -1;
+    grid-row: 4;
     min-height: 32px;
   }
 
@@ -853,9 +912,16 @@ button.meta-chip:hover {
 
   .task-row {
     grid-template-columns: 20px minmax(0, 1fr) 28px;
+    gap: 8px;
+    min-height: 48px;
+    padding: 10px;
+  }
+
+  .task-list.compact .task-row {
+    grid-template-columns: 20px minmax(0, 1fr);
     gap: 7px;
-    min-height: 40px;
-    padding: 6px 7px;
+    min-height: 0;
+    padding: 7px 9px;
   }
 
   .check-button {

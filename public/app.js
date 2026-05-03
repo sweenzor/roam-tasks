@@ -1,4 +1,5 @@
 const storageKeys = {
+  compact: "roamTasksCompact",
   pageDraft: "roamTasksPageDraft",
   query: "roamTasksQuery",
   sinceDate: "roamTasksSinceDate",
@@ -11,6 +12,7 @@ const storageKeys = {
 const state = {
   graphs: [],
   graph: null,
+  compact: loadCompact(),
   tasks: [],
   view: loadView(),
   query: loadQuery(),
@@ -31,6 +33,7 @@ const els = {
   sinceInput: document.querySelector("#sinceInput"),
   sinceDoneFilter: document.querySelector("#sinceDoneFilter"),
   sinceDoneToggle: document.querySelector("#sinceDoneToggle"),
+  compactToggle: document.querySelector("#compactToggle"),
   sortSelect: document.querySelector("#sortSelect"),
   refreshButton: document.querySelector("#refreshButton"),
   taskList: document.querySelector("#taskList"),
@@ -97,6 +100,13 @@ function bindEvents() {
       await refreshTasks();
       return;
     }
+    render();
+  });
+
+  els.compactToggle.checked = state.compact;
+  els.compactToggle.addEventListener("change", () => {
+    state.compact = els.compactToggle.checked;
+    localStorage.setItem(storageKeys.compact, state.compact ? "true" : "false");
     render();
   });
 
@@ -212,6 +222,8 @@ function render() {
   els.sinceInput.classList.toggle("hidden", state.view !== "since");
   els.sinceDoneFilter.classList.toggle("hidden", state.view !== "since");
   els.sinceDoneToggle.checked = state.sinceHideDone;
+  els.compactToggle.checked = state.compact;
+  els.taskList.classList.toggle("compact", state.compact);
   els.taskList.innerHTML = "";
 
   if (!state.graphs.length) {
@@ -690,6 +702,10 @@ function loadSinceDate() {
 function loadSinceHideDone() {
   const storedValue = localStorage.getItem(storageKeys.sinceHideDone);
   return storedValue === null ? true : storedValue === "true";
+}
+
+function loadCompact() {
+  return localStorage.getItem(storageKeys.compact) === "true";
 }
 
 function loadView() {
