@@ -22,6 +22,8 @@ test("renderer persists lightweight UI state across relaunches", async () => {
   assert.match(script, /view: loadView\(\)/);
   assert.match(script, /query: loadQuery\(\)/);
   assert.match(script, /sort: loadSort\(\)/);
+  assert.match(script, /compact: loadCompact\(\)/);
+  assert.match(script, /roamTasksCompact/);
   assert.match(script, /roamTasksTaskDraft/);
   assert.match(script, /localStorage\.setItem\(storageKeys\.view, state\.view\)/);
 });
