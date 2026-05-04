@@ -8,9 +8,11 @@ services:
       PORT: 5874
       ROAM_DEFAULT_GRAPH: ${ROAM_DEFAULT_GRAPH:-}
       ROAM_LOCAL_API_HOST: host.docker.internal
+      ROAM_TASKS_LOCAL_STORE_PATH: /home/node/.roam-tasks/gtd-state.json
     volumes:
       - ${HOME}/.roam-tools.json:/home/node/.roam-tools.json:ro
       - ${HOME}/.roam-local-api.json:/home/node/.roam-local-api.json:ro
+      - ${HOME}/.roam-tasks:/home/node/.roam-tasks
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped

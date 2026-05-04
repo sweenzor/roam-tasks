@@ -1,6 +1,9 @@
+import { join } from "node:path";
 import { app, BrowserWindow, Menu, dialog, shell, screen } from "electron";
-import { server, startServer } from "../server/index.mjs";
+import { startServer } from "../server/index.mjs";
 import { defaultWindowBounds, loadWindowState, minimumWindowSize, watchWindowState } from "./window-state.mjs";
+
+app.setName("Roam Tasks");
 
 let mainWindow;
 let serverInfo;
@@ -9,7 +12,8 @@ async function createWindow() {
   if (!serverInfo) {
     serverInfo = await startServer({
       host: "127.0.0.1",
-      port: Number(process.env.ELECTRON_PORT) || 0
+      port: Number(process.env.ELECTRON_PORT) || 0,
+      localStorePath: join(app.getPath("userData"), "gtd-state.json")
     });
     await waitForServer(serverInfo.url);
   }
@@ -173,5 +177,5 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
-  if (server.listening) server.close();
+  if (serverInfo?.server?.listening) serverInfo.server.close();
 });

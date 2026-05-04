@@ -13,54 +13,76 @@
       <main class="workspace">
         <header class="view-bar">
           <nav class="view-list" aria-label="Task views">
-            <button class="view-button" data-view="inbox" type="button">
+            <button class="view-button active" data-view="inbox" type="button">
               <span>Inbox</span><strong id="countInbox">0</strong>
             </button>
-            <button class="view-button" data-view="today" type="button">
-              <span>Today</span><strong id="countToday">0</strong>
+            <button class="view-button" data-view="next" type="button">
+              <span>Next</span><strong id="countNext">0</strong>
             </button>
-            <button class="view-button" data-view="overdue" type="button">
-              <span>Overdue</span><strong id="countOverdue">0</strong>
+            <button class="view-button" data-view="waiting" type="button">
+              <span>Waiting</span><strong id="countWaiting">0</strong>
             </button>
-            <button class="view-button" data-view="upcoming" type="button">
-              <span>Upcoming</span><strong id="countUpcoming">0</strong>
+            <button class="view-button" data-view="scheduled" type="button">
+              <span>Scheduled</span><strong id="countScheduled">0</strong>
             </button>
-            <button class="view-button active" data-view="since" type="button">
-              <span>Since</span><strong id="countSince">0</strong>
+            <button class="view-button" data-view="someday" type="button">
+              <span>Someday</span><strong id="countSomeday">0</strong>
             </button>
-            <button class="view-button" data-view="done" type="button">
-              <span>Done</span>
+            <button class="view-button" data-view="projects" type="button">
+              <span>Projects</span><strong id="countProjects">0</strong>
+            </button>
+            <button class="view-button" data-view="review" type="button">
+              <span>Review</span><strong id="countReview">0</strong>
             </button>
           </nav>
           <button id="refreshButton" class="icon-button sync-button" type="button" title="Refresh tasks" aria-label="Refresh tasks">↻</button>
         </header>
 
         <header class="toolbar">
-          <form id="addForm" class="quick-add hidden">
-            <input id="taskInput" class="input task-input" autocomplete="off" placeholder="Add a Roam task" type="text">
-            <input id="pageInput" class="input page-input" autocomplete="off" placeholder="Page" type="text">
+          <form id="addForm" class="quick-add">
+            <input id="taskInput" class="input task-input" autocomplete="off" placeholder="Capture task" type="text">
+            <input id="pageInput" class="input page-input" autocomplete="off" placeholder="Project" type="text">
             <button class="primary-button" type="submit" title="Add task">+</button>
           </form>
 
           <div class="tool-actions">
             <input id="searchInput" class="input search-input" autocomplete="off" placeholder="Search" type="search">
             <input id="sinceInput" class="input since-input hidden" title="Show tasks since date" type="date">
-            <label id="sinceDoneFilter" class="since-done-filter hidden">
-              <input id="sinceDoneToggle" type="checkbox">
-              <span>Hide completed</span>
+            <label id="completedFilter" class="completed-filter">
+              <input id="showCompletedToggle" type="checkbox">
+              <span>Show completed</span>
             </label>
             <label id="compactFilter" class="compact-filter">
               <input id="compactToggle" type="checkbox">
-              <span>Compact</span>
+              <span>Compact view</span>
             </label>
             <select id="sortSelect" class="input sort-input" title="Sort tasks">
               <option value="recent">Recent</option>
               <option value="due">Due</option>
-              <option value="page">Page</option>
+              <option value="project">Project</option>
               <option value="updated">Updated</option>
             </select>
           </div>
         </header>
+
+        <section id="bulkBar" class="bulk-bar hidden" aria-label="Bulk task actions">
+          <span id="bulkCount" class="bulk-count">0 selected</span>
+          <button id="selectVisibleButton" class="secondary-button" type="button">Select visible</button>
+          <select id="bulkStatusInput" class="input bulk-status-input" title="Move selected tasks">
+            <option value="">Move to...</option>
+            <option value="inbox">Inbox</option>
+            <option value="next">Next</option>
+            <option value="waiting">Waiting</option>
+            <option value="scheduled">Scheduled</option>
+            <option value="someday">Someday</option>
+          </select>
+          <input id="bulkProjectInput" class="input bulk-project-input" autocomplete="off" placeholder="Project" type="text">
+          <input id="bulkContextInput" class="input bulk-context-input" autocomplete="off" placeholder="@context" type="text">
+          <input id="bulkDateInput" class="input bulk-date-input" title="Scheduled date" type="date">
+          <input id="bulkWaitingInput" class="input bulk-waiting-input" autocomplete="off" placeholder="Waiting for" type="text">
+          <button id="bulkApplyButton" class="secondary-button" type="button">Apply</button>
+          <button id="bulkClearButton" class="icon-button" type="button" title="Clear selection" aria-label="Clear selection">×</button>
+        </section>
 
         <section id="setupPanel" class="setup-panel hidden">
           <h2>Connect Roam Desktop</h2>
@@ -68,7 +90,7 @@
         </section>
 
         <section class="list-head">
-          <h2 id="viewTitle">Since</h2>
+          <h2 id="viewTitle">Inbox</h2>
         </section>
 
         <div id="taskList" class="task-list" aria-live="polite"></div>
@@ -76,7 +98,7 @@
     </div>
 
     <template id="taskTemplate">
-      <article class="task-row">
+      <article class="task-row" tabindex="0">
         <button class="check-button" type="button" title="Toggle done"></button>
         <div class="task-main">
           <div class="task-title"></div>

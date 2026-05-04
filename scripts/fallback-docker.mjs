@@ -2,7 +2,8 @@
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { realpathSync } from "node:fs";
+import { mkdirSync, realpathSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -23,6 +24,9 @@ const env = {
   COMPOSE_PROJECT_NAME: projectName,
   ROAM_TASKS_PORT: hostPort
 };
+const localStoreDir = join(process.env.HOME || homedir(), ".roam-tasks");
+
+mkdirSync(localStoreDir, { recursive: true });
 
 console.log(`Docker Compose project: ${projectName}`);
 console.log(`Worktree: ${repoDir}`);

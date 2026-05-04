@@ -12,6 +12,7 @@ import {
   taskStringWithStatus,
   taskStringWithText
 } from "./task-utils.mjs";
+import { createJsonLocalStore } from "./local-store.mjs";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const rootDir = join(__dirname, "..");
@@ -113,6 +114,7 @@ function createRuntime(options = {}) {
     getConfiguredGraphs: options.getConfiguredGraphs || getConfiguredGraphs,
     getRoamPort: options.getRoamPort || getRoamPort,
     getTokenInfo: options.getTokenInfo || getTokenInfo,
+    localStore: options.localStore || createJsonLocalStore(options.localStorePath),
     roamCall: options.roamCall || roamCall
   };
 }
@@ -177,32 +179,33 @@ function assertGraphCanWrite(graph) {
   throw forbidden("This Roam token is read-only.");
 }
 
-export function startServer({ port = appPort, host = listenHost } = {}) {
+export function startServer({ port = appPort, host = listenHost, ...runtimeOptions } = {}) {
   return new Promise((resolve, reject) => {
+    const activeServer = Object.keys(runtimeOptions).length ? createAppServer(runtimeOptions) : server;
     const onError = (error) => {
       cleanup();
       reject(error);
     };
     const onListening = () => {
       cleanup();
-      const address = server.address();
+      const address = activeServer.address();
       const resolvedPort = typeof address === "object" && address ? address.port : port;
       const urlHost = host === "0.0.0.0" ? "127.0.0.1" : host;
       resolve({
-        server,
+        server: activeServer,
         host,
         port: resolvedPort,
         url: `http://${urlHost}:${resolvedPort}`
       });
     };
     const cleanup = () => {
-      server.off("error", onError);
-      server.off("listening", onListening);
+      activeServer.off("error", onError);
+      activeServer.off("listening", onListening);
     };
 
-    server.once("error", onError);
-    server.once("listening", onListening);
-    server.listen(port, host);
+    activeServer.once("error", onError);
+    activeServer.once("listening", onListening);
+    activeServer.listen(port, host);
   });
 }
 
@@ -239,6 +242,19 @@ async function handleApi(request, response, url, context) {
       port: await context.getRoamPort(),
       roamApiHost: context.roamApiHost
     });
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/local-state") {
+    const localState = await context.localStore.read();
+    sendJson(response, 200, localState);
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/local-state") {
+    const body = await readJsonBody(request);
+    const localState = await context.localStore.write(body);
+    sendJson(response, 200, localState);
     return;
   }
 

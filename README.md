@@ -50,6 +50,16 @@ This launches the Electron app. Electron starts the Node server inside the deskt
 
 For development, `npm run dev` does the same thing. The Electron dependency is local to this repository at `node_modules/`; it is not installed globally.
 
+## Local GTD State
+
+The GTD sandbox state is stored outside Roam in a local JSON file. In the Electron app, the file is:
+
+```text
+~/Library/Application Support/Roam Tasks/gtd-state.json
+```
+
+The web-server-only runtime uses `~/.roam-tasks/gtd-state.json`, or the path from `ROAM_TASKS_LOCAL_STORE_PATH` when that environment variable is set. The Docker fallback mounts host `~/.roam-tasks` into the container so browser-inspection state can survive container rebuilds.
+
 ## Dock Shortcut
 
 Build a Dockable macOS app bundle:
@@ -64,7 +74,7 @@ To add it to the Dock, open `dist/` in Finder, drag `Roam Tasks.app` into `/Appl
 
 ### Live Commit Refresh
 
-The Husky hooks refresh `dist/Roam Tasks.app` on `main` after app code changes. If the app is already running when a commit refreshes the bundle, `post-commit` quits and reopens it so the live window picks up the new build. Renderer UI state such as the selected view, search query, sort, Since filters, and quick-add draft is kept in browser storage across the relaunch.
+The Husky hooks refresh `dist/Roam Tasks.app` on `main` after app code changes. If the app is already running when a commit refreshes the bundle, `post-commit` quits and reopens it so the live window picks up the new build. Lightweight UI preferences such as the selected view, search query, sort, Since filter, and quick-add draft are kept in browser storage across the relaunch.
 
 Set `ROAM_TASKS_RESTART_APP_SKIP=1` to rebuild without reopening the running app, or `ROAM_TASKS_REFRESH_APP_SKIP=1` to skip the hook refresh entirely.
 
@@ -76,7 +86,7 @@ npm run fallback:docker
 
 Then open the URL printed by the script. Each worktree gets its own Docker Compose project name and a stable default host port derived from the worktree path, so multiple worktrees can run at the same time.
 
-Use this path when an agent needs to inspect the app in a normal or in-app browser. It avoids fixed-port `localhost:5874` collisions and keeps browser previews tied to the current worktree. Docker runs the web server only; it does not run Electron. The compose file binds the app to `127.0.0.1`, mounts `~/.roam-tools.json` and `~/.roam-local-api.json` read-only into the container, and sets `ROAM_LOCAL_API_HOST=host.docker.internal` so the container can reach Roam Desktop on the host.
+Use this path when an agent needs to inspect the app in a normal or in-app browser. It avoids fixed-port `localhost:5874` collisions and keeps browser previews tied to the current worktree. Docker runs the web server only; it does not run Electron. The compose file binds the app to `127.0.0.1`, mounts `~/.roam-tools.json` and `~/.roam-local-api.json` read-only into the container, mounts `~/.roam-tasks` for GTD state, and sets `ROAM_LOCAL_API_HOST=host.docker.internal` so the container can reach Roam Desktop on the host.
 
 To choose a port explicitly, run:
 
@@ -132,7 +142,7 @@ Roam tasks are blocks containing Roam's TODO marker:
 {{[[TODO]]}} Send invoice [[May 1st, 2026]] #admin
 ```
 
-The app reads `{{[[TODO]]}}`, `{{[[DONE]]}}`, and `{{[[Abandoned]]}}` blocks, parses common Roam date links, and updates the original Roam block when you complete, edit, or delete a task.
+The app reads `{{[[TODO]]}}`, `{{[[DONE]]}}`, and `{{[[Abandoned]]}}` blocks, parses common Roam date links, and layers GTD organization state on top locally. Captured sandbox tasks, task category changes, local completion state, and local removals are stored in the local GTD JSON file rather than written back to Roam.
 
 ## Local API Notes
 
