@@ -46,7 +46,9 @@ test("renderer persists lightweight UI state across relaunches", async () => {
 
 test("GTD view defaults to inbox capture", async () => {
   const script = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
-  assert.match(script, /const gtdViewIds = \["inbox", "next", "waiting", "scheduled", "someday", "projects", "review"\]/);
+  const model = await readFile(new URL("../public/gtd-model.js", import.meta.url), "utf8");
+
+  assert.match(model, /export const gtdViewIds = \["inbox", "next", "waiting", "scheduled", "someday", "projects", "review"\]/);
   assert.match(script, /return gtdViewIds\.includes\(view\) \? view : "inbox"/);
 });
 
@@ -67,6 +69,7 @@ test("renderer supports local bulk categorization", async () => {
 test("renderer exposes the completed-task slider only for Review", async () => {
   const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
   const script = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
+  const model = await readFile(new URL("../public/gtd-model.js", import.meta.url), "utf8");
 
   assert.match(html, /id="completedFilter"/);
   assert.match(html, /id="showCompletedToggle"/);
@@ -75,7 +78,8 @@ test("renderer exposes the completed-task slider only for Review", async () => {
   assert.match(script, /showCompleted: loadShowCompleted\(\)/);
   assert.match(script, /function showsReviewCompletedFilter\(\)/);
   assert.match(script, /els\.completedFilter\.classList\.toggle\("hidden", !showsReviewCompletedFilter\(\)\)/);
-  assert.match(script, /task\.done && !\(state\.view === "review" && state\.showCompleted\)/);
+  assert.match(model, /task\.done && !\(view === "review" && showCompleted\)/);
+  assert.match(model, /includeDone: showCompleted/);
   assert.doesNotMatch(script, /state\.view === "done"/);
   assert.doesNotMatch(script, /done: "Done"/);
 });
@@ -83,10 +87,11 @@ test("renderer exposes the completed-task slider only for Review", async () => {
 test("Someday view exposes and applies the since date selector", async () => {
   const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
   const script = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
+  const model = await readFile(new URL("../public/gtd-model.js", import.meta.url), "utf8");
 
   assert.match(html, /id="sinceInput"/);
   assert.match(script, /sinceDate: "roamTasksSomedaySinceDate"/);
-  assert.match(script, /import \{ isTaskSince, taskDateIso, timestampIso \}/);
+  assert.match(script, /import \{ timestampIso \}/);
   assert.match(script, /function showsSomedaySinceFilter\(\)/);
   assert.match(script, /function hasSomedaySinceDate\(\)/);
   assert.match(script, /return state\.view === "someday"/);
@@ -94,7 +99,7 @@ test("Someday view exposes and applies the since date selector", async () => {
   assert.match(script, /localStorage\.removeItem\(storageKeys\.sinceDate\)/);
   assert.match(script, /els\.toolActions\.classList\.toggle\("since-active", showsSomedaySinceFilter\(\)\)/);
   assert.match(script, /els\.sinceInput\.classList\.toggle\("hidden", !showsSomedaySinceFilter\(\)\)/);
-  assert.match(script, /state\.view === "someday" && hasSomedaySinceDate\(\) && !isTaskSince\(task, state\.sinceDate\)/);
+  assert.match(model, /view === "someday" && sinceDate && !isTaskSince\(task, sinceDate\)/);
 });
 
 test("local sandbox removal is undoable until leaving the view", async () => {

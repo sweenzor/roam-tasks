@@ -1,4 +1,19 @@
-import { isTaskSince, taskDateIso, timestampIso } from "./task-view-model.js";
+import {
+  bulkChangesFromInput,
+  cleanRoamInlineText,
+  effectiveTasks as deriveEffectiveTasks,
+  filterGtdTasks,
+  getGtdCounts,
+  gtdStatusLabels,
+  gtdViewIds,
+  isDailyNoteTitle,
+  isRoamDateTitle,
+  projectName,
+  removeLocalTaskFromStore,
+  sortTasks,
+  updateLocalTaskState
+} from "./gtd-model.js";
+import { timestampIso } from "./task-view-model.js";
 
 const storageKeys = {
   compact: "roamTasksCompact",
@@ -11,15 +26,6 @@ const storageKeys = {
   sort: "roamTasksSort",
   taskDraft: "roamTasksTaskDraft",
   view: "roamTasksView"
-};
-
-const gtdViewIds = ["inbox", "next", "waiting", "scheduled", "someday", "projects", "review"];
-const gtdStatusLabels = {
-  inbox: "Inbox",
-  next: "Next",
-  waiting: "Waiting",
-  scheduled: "Scheduled",
-  someday: "Someday"
 };
 
 const state = {
@@ -253,7 +259,7 @@ function render() {
     button.classList.toggle("active", button.dataset.view === state.view);
   }
 
-  const counts = getCounts(state.tasks);
+  const counts = getGtdCounts(state.tasks, { sinceDate: state.sinceDate, today: todayIso() });
   els.counts.inbox.textContent = counts.inbox;
   els.counts.next.textContent = counts.next;
   els.counts.waiting.textContent = counts.waiting;
@@ -262,7 +268,16 @@ function render() {
   els.counts.projects.textContent = counts.projects;
   els.counts.review.textContent = counts.review;
 
-  const visible = sortTasks(filterTasks(state.tasks), state.sort);
+  const visible = sortTasks(
+    filterGtdTasks(state.tasks, {
+      view: state.view,
+      query: state.query,
+      showCompleted: state.showCompleted,
+      sinceDate: state.sinceDate,
+      today: todayIso()
+    }),
+    state.sort
+  );
   syncSelectionToVisibleTasks(visible);
   renderBulkBar(visible);
   els.viewTitle.textContent = viewTitle();
@@ -557,26 +572,13 @@ function applyBulkChanges() {
 }
 
 function bulkChanges() {
-  const changes = {};
-  const status = els.bulkStatusInput.value;
-  const project = els.bulkProjectInput.value.trim();
-  const context = els.bulkContextInput.value.trim();
-  const dueDate = els.bulkDateInput.value;
-  const waitingFor = els.bulkWaitingInput.value.trim();
-
-  if (status) changes.gtdStatus = status;
-  if (project) changes.project = project;
-  if (context) changes.context = normalizeContext(context);
-  if (dueDate) {
-    changes.dueDate = dueDate;
-    if (!changes.gtdStatus) changes.gtdStatus = "scheduled";
-  }
-  if (waitingFor) {
-    changes.waitingFor = waitingFor;
-    if (!changes.gtdStatus) changes.gtdStatus = "waiting";
-  }
-
-  return changes;
+  return bulkChangesFromInput({
+    status: els.bulkStatusInput.value,
+    project: els.bulkProjectInput.value,
+    context: els.bulkContextInput.value,
+    dueDate: els.bulkDateInput.value,
+    waitingFor: els.bulkWaitingInput.value
+  });
 }
 
 function resetBulkInputs() {
@@ -629,76 +631,29 @@ function commitPendingRemovalsForView(view) {
 function updateLocalTask(task, changes) {
   const uid = task.uid;
   const previous = state.localState[uid] || {};
-  const next = { ...previous, ...changes, editedTime: Date.now() };
-
-  if (Object.prototype.hasOwnProperty.call(changes, "text")) {
-    next.text = String(changes.text || "").trim() || "Untitled task";
-  }
-
-  if (Object.prototype.hasOwnProperty.call(changes, "done")) {
-    next.done = Boolean(changes.done);
-    next.status = next.done ? "done" : "todo";
-    next.completedDate = next.done ? todayIso() : null;
-  }
-
-  state.localState[uid] = next;
+  state.localState[uid] = updateLocalTaskState(previous, changes, {
+    now: Date.now(),
+    today: todayIso()
+  });
   persistLocalStore();
   state.tasks = effectiveTasks();
 }
 
 function removeLocalTask(task) {
-  if (task.local) {
-    state.localTasks = state.localTasks.filter((candidate) => candidate.uid !== task.uid);
-    delete state.localState[task.uid];
-  } else {
-    state.localState[task.uid] = {
-      ...(state.localState[task.uid] || {}),
-      deleted: true,
-      editedTime: Date.now()
-    };
-  }
+  const nextStore = removeLocalTaskFromStore(
+    { localTasks: state.localTasks, localState: state.localState },
+    task,
+    { now: Date.now() }
+  );
+  state.localTasks = nextStore.localTasks;
+  state.localState = nextStore.localState;
   state.selectedTaskIds.delete(task.uid);
   persistLocalStore();
   state.tasks = effectiveTasks();
 }
 
 function effectiveTasks() {
-  const byUid = new Map();
-  for (const task of [...state.roamTasks, ...state.localTasks]) {
-    const overlay = state.localState[task.uid] || {};
-    if (overlay.deleted) continue;
-    byUid.set(task.uid, applyLocalState(task, overlay));
-  }
-  return [...byUid.values()];
-}
-
-function applyLocalState(task, overlay = {}) {
-  const localText = own(overlay, "text") ? overlay.text : task.text;
-  const localDone = own(overlay, "done") ? overlay.done : task.done;
-  const localStatus = own(overlay, "status") ? overlay.status : task.status;
-  const dueDate = own(overlay, "dueDate") ? overlay.dueDate || null : task.dueDate;
-  const project = own(overlay, "project") ? String(overlay.project || "").trim() : inferProject(task);
-  const context = own(overlay, "context") ? String(overlay.context || "").trim() : inferContext(task);
-  const waitingFor = own(overlay, "waitingFor") ? String(overlay.waitingFor || "").trim() : inferWaitingFor(task);
-  const base = {
-    ...task,
-    text: localText,
-    raw: own(overlay, "text") ? localText : task.raw,
-    done: Boolean(localDone),
-    status: localStatus,
-    dueDate,
-    completedDate: own(overlay, "completedDate") ? overlay.completedDate : task.completedDate,
-    editedTime: own(overlay, "editedTime") ? overlay.editedTime : task.editedTime,
-    project,
-    context,
-    waitingFor
-  };
-  base.gtdStatus = own(overlay, "gtdStatus") ? overlay.gtdStatus : inferGtdStatus(base);
-  return base;
-}
-
-function own(object, key) {
-  return Object.prototype.hasOwnProperty.call(object, key);
+  return deriveEffectiveTasks(state.roamTasks, state.localTasks, state.localState);
 }
 
 let localStoreSaveQueue = Promise.resolve();
@@ -806,83 +761,6 @@ async function openRoamTarget({ title, uid, fallbackHref }) {
     if (fallbackHref) window.location.href = fallbackHref;
     setStatus(error.message, false, true);
   }
-}
-
-function filterTasks(tasks) {
-  const reviewTasks = new Set(tasks.filter((task) => isReviewTask(task, tasks)).map((task) => task.uid));
-
-  return tasks.filter((task) => {
-    if (task.done && !(state.view === "review" && state.showCompleted)) return false;
-    if (state.view === "inbox" && task.gtdStatus !== "inbox") return false;
-    if (state.view === "next" && task.gtdStatus !== "next") return false;
-    if (state.view === "waiting" && task.gtdStatus !== "waiting") return false;
-    if (state.view === "scheduled" && !isScheduledTask(task)) return false;
-    if (state.view === "someday" && task.gtdStatus !== "someday") return false;
-    if (state.view === "someday" && hasSomedaySinceDate() && !isTaskSince(task, state.sinceDate)) return false;
-    if (state.view === "projects" && !projectName(task)) return false;
-    if (state.view === "review" && !reviewTasks.has(task.uid)) return false;
-
-    if (!state.query) return true;
-    const haystack = [
-      task.text,
-      task.pageTitle,
-      task.gtdStatus,
-      projectName(task),
-      task.context,
-      task.waitingFor,
-      ...(task.tags || []),
-      ...(task.pages || []),
-      ...(task.breadcrumb || []).map((parent) => parent.string),
-      ...(task.details || []).map((detail) => detail.string)
-    ]
-      .join(" ")
-      .toLowerCase();
-    return haystack.includes(state.query);
-  });
-}
-
-function sortTasks(tasks, mode) {
-  const copy = [...tasks];
-  if (mode === "recent") {
-    return copy.sort(compareRecentTasks);
-  }
-  if (mode === "due") {
-    return copy.sort((a, b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999"));
-  }
-  if (mode === "project" || mode === "page") {
-    return copy.sort((a, b) => {
-      return projectName(a).localeCompare(projectName(b)) || a.text.localeCompare(b.text);
-    });
-  }
-  if (mode === "updated") {
-    return copy.sort((a, b) => (b.editedTime || 0) - (a.editedTime || 0));
-  }
-  return copy.sort(compareRecentTasks);
-}
-
-function compareRecentTasks(a, b) {
-  const aDate = taskDateIso(a);
-  const bDate = taskDateIso(b);
-  if (aDate && bDate && aDate !== bDate) return bDate.localeCompare(aDate);
-  if (aDate && !bDate) return -1;
-  if (!aDate && bDate) return 1;
-  return (b.editedTime || 0) - (a.editedTime || 0) || a.text.localeCompare(b.text);
-}
-
-function getCounts(tasks) {
-  const openTasks = tasks.filter((task) => !task.done);
-  const projects = new Set(openTasks.map(projectName).filter(Boolean));
-  return {
-    inbox: openTasks.filter((task) => task.gtdStatus === "inbox").length,
-    next: openTasks.filter((task) => task.gtdStatus === "next").length,
-    waiting: openTasks.filter((task) => task.gtdStatus === "waiting").length,
-    scheduled: openTasks.filter(isScheduledTask).length,
-    someday: openTasks.filter((task) => {
-      return task.gtdStatus === "someday" && (!hasSomedaySinceDate() || isTaskSince(task, state.sinceDate));
-    }).length,
-    projects: projects.size,
-    review: openTasks.filter((task) => isReviewTask(task, tasks)).length
-  };
 }
 
 function renderTaskMeta(task, meta) {
@@ -1228,123 +1106,8 @@ function loadSort() {
   return ["recent", "due", "project", "updated"].includes(sort) ? sort : "recent";
 }
 
-function inferGtdStatus(task) {
-  if (task.waitingFor) return "waiting";
-  if (hasRelation(task, ["waiting", "waiting for"])) return "waiting";
-  if (hasRelation(task, ["someday", "maybe", "someday/maybe"])) return "someday";
-  if (hasRelation(task, ["next", "next action", "next actions"])) return "next";
-  if (task.dueDate || hasRelation(task, ["scheduled", "calendar"])) return "scheduled";
-  return "inbox";
-}
-
-function inferProject(task) {
-  const pageTitle = cleanRoamInlineText(task.pageTitle || "");
-  if (isProjectLikeTitle(pageTitle)) return pageTitle;
-
-  for (const page of task.pages || []) {
-    const title = cleanRoamInlineText(page);
-    if (isProjectLikeTitle(title)) return title;
-  }
-
-  return "";
-}
-
-function inferContext(task) {
-  const relations = relationTitles(task);
-  const context = relations.find((title) => /^@/.test(title));
-  if (context) return context;
-
-  const known = relations.find((title) => {
-    return ["calls", "computer", "email", "errands", "home", "office", "online", "work"].includes(
-      normalizeRelationTitle(title)
-    );
-  });
-  return known ? normalizeContext(known) : "";
-}
-
-function inferWaitingFor(task) {
-  const source = `${task.text || ""} ${(task.details || []).map((detail) => detail.string).join(" ")}`;
-  const match = source.match(/waiting(?:\s+for|::)\s+([^#\[\]\n]+)/i);
-  return match ? cleanRoamInlineText(match[1]) : "";
-}
-
-function projectName(task) {
-  return (task.project || "").trim();
-}
-
-function isProjectLikeTitle(title = "") {
-  const normalized = normalizeRelationTitle(title);
-  if (!normalized || normalized === "untitled" || normalized === "local gtd") return false;
-  if (isDailyNoteTitle(title) || isRoamDateTitle(title)) return false;
-  if (Object.keys(gtdStatusLabels).includes(normalized)) return false;
-  if (["done", "todo", "abandoned", "p1", "p2", "p3"].includes(normalized)) return false;
-  return true;
-}
-
-function isScheduledTask(task) {
-  return task.gtdStatus === "scheduled" || Boolean(task.dueDate);
-}
-
-function isReviewTask(task, tasks) {
-  if (task.done) return false;
-  if (task.gtdStatus === "inbox") return true;
-  if (task.gtdStatus === "waiting") return true;
-  if (task.dueDate && task.dueDate <= todayIso()) return true;
-
-  const project = projectName(task);
-  if (!project) return false;
-  const projectHasNextAction = tasks.some((candidate) => {
-    return !candidate.done && projectName(candidate) === project && candidate.gtdStatus === "next";
-  });
-  return !projectHasNextAction;
-}
-
-function hasRelation(task, aliases) {
-  const wanted = new Set(aliases.map(normalizeRelationTitle));
-  return relationTitles(task).some((title) => wanted.has(normalizeRelationTitle(title)));
-}
-
-function relationTitles(task) {
-  return [
-    task.pageTitle,
-    ...(task.pages || []),
-    ...(task.tags || []),
-    ...(task.breadcrumb || []).map((parent) => cleanRoamInlineText(parent.string))
-  ].filter(Boolean);
-}
-
-function normalizeRelationTitle(value = "") {
-  return cleanRoamInlineText(value)
-    .replace(/^#/, "")
-    .trim()
-    .toLowerCase();
-}
-
-function normalizeContext(value = "") {
-  const context = value.trim();
-  if (!context) return "";
-  return context.startsWith("@") ? context : `@${context.replace(/^#/, "")}`;
-}
-
 function shouldLoadDoneTasks() {
   return state.view === "review" && state.showCompleted;
-}
-
-function isRoamDateTitle(value = "") {
-  return parseRoamDateTitle(value) !== "";
-}
-
-function isDailyNoteTitle(value = "") {
-  return isRoamDateTitle(value) || /^\d{1,2}-\d{1,2}-\d{4}$/.test(value.trim());
-}
-
-function parseRoamDateTitle(value = "") {
-  const trimmed = value.trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
-  const match = trimmed.match(
-    /^(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:st|nd|rd|th)?(?:,\s*\d{4})?$/i
-  );
-  return match ? trimmed : "";
 }
 
 function formatDue(isoDate) {
@@ -1476,23 +1239,6 @@ function renderPathChipText(value = "") {
     html = html.replaceAll(`@@RTPATHTOKEN${index}@@`, replacement);
   });
   return html;
-}
-
-function cleanRoamInlineText(value = "") {
-  return String(value)
-    .replace(/\{\{\s*\[\[(?:TODO|DONE|Abandoned)\]\]\s*\}\}/gi, "")
-    .replace(/\{\{\s*(?:TODO|DONE|Abandoned)\s*\}\}/gi, "")
-    .replace(/\[([^\]\n]+)\]\(\[\[([^\]\n]+)\]\]\)/g, "$1")
-    .replace(/\[([^\]\n]+)\]\(([^)\n]+)\)/g, "$1")
-    .replace(/#\[\[([^\]\n]+)\]\]/g, "#$1")
-    .replace(/\[\[([^\]\n]+)\]\]/g, "$1")
-    .replace(/\*\*([^*]+)\*\*/g, "$1")
-    .replace(/__([^_]+)__/g, "$1")
-    .replace(/~~([^~]+)~~/g, "$1")
-    .replace(/`([^`]+)`/g, "$1")
-    .replace(/^\s*[-*]\s+/, "")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 function escapeHtml(value) {
