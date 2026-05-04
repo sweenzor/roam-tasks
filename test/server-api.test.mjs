@@ -71,6 +71,52 @@ test("rejects write requests addressed to non-local hosts", async () => {
   assert.equal(response.json.code, "FORBIDDEN");
 });
 
+test("local GTD state is persisted outside Roam", async () => {
+  let stored = { version: 1, localTasks: [], localState: {} };
+  const writes = [];
+  const handler = appHandler({
+    localStore: {
+      read: async () => stored,
+      write: async (next) => {
+        writes.push(next);
+        stored = { version: 1, localTasks: next.localTasks, localState: next.localState };
+        return stored;
+      }
+    }
+  });
+
+  const initial = await invoke(handler, {
+    method: "GET",
+    url: "/api/local-state"
+  });
+
+  assert.equal(initial.status, 200);
+  assert.deepEqual(initial.json, { version: 1, localTasks: [], localState: {} });
+
+  const saved = await invoke(handler, {
+    method: "POST",
+    url: "/api/local-state",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      localTasks: [{ uid: "local-1", text: "Capture locally" }],
+      localState: { "roam-1": { gtdStatus: "next", project: "Launch" } }
+    })
+  });
+
+  assert.equal(saved.status, 200);
+  assert.deepEqual(writes, [
+    {
+      localTasks: [{ uid: "local-1", text: "Capture locally" }],
+      localState: { "roam-1": { gtdStatus: "next", project: "Launch" } }
+    }
+  ]);
+  assert.deepEqual(saved.json, {
+    version: 1,
+    localTasks: [{ uid: "local-1", text: "Capture locally" }],
+    localState: { "roam-1": { gtdStatus: "next", project: "Launch" } }
+  });
+});
+
 test("patch reads the current Roam block before updating", async () => {
   const actions = [];
   let updatedString = "";
@@ -184,6 +230,7 @@ function appHandler(options = {}) {
     getConfiguredGraphs: async () => options.graphs || [writableGraph],
     getRoamPort: async () => 3333,
     getTokenInfo: async () => ({ status: "active" }),
+    localStore: options.localStore,
     roamCall: options.roamCall || (async () => ({ success: true, result: {} }))
   });
 }
