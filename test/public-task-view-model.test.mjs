@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   getTaskCounts,
-  isTaskSinceViewMatch
+  isTaskSinceViewMatch,
+  timestampIso
 } from "../public/task-view-model.js";
 
 const tasks = [
@@ -85,6 +86,13 @@ test("since count shows completed-only matches when completed tasks are included
   assert.equal(counts.since, 1);
 });
 
+test("timestamp fallback dates use the local calendar day", () => {
+  withTimeZone("America/Los_Angeles", () => {
+    const latePacificMay1 = Date.UTC(2026, 4, 2, 6, 30);
+    assert.equal(timestampIso(latePacificMay1), "2026-05-01");
+  });
+});
+
 function task(uid, options = {}) {
   return {
     uid,
@@ -95,4 +103,18 @@ function task(uid, options = {}) {
     editedTime: 0,
     ...options
   };
+}
+
+function withTimeZone(timeZone, callback) {
+  const previousTimeZone = process.env.TZ;
+  process.env.TZ = timeZone;
+  try {
+    callback();
+  } finally {
+    if (previousTimeZone === undefined) {
+      delete process.env.TZ;
+    } else {
+      process.env.TZ = previousTimeZone;
+    }
+  }
 }

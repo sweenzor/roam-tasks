@@ -141,7 +141,28 @@ test("extracts due dates, created dates, priority and formatting", () => {
   assert.equal(formatRoamDailyDate(new Date(2026, 4, 1)), "05-01-2026");
 });
 
+test("extracts timestamp-created dates in the local timezone", () => {
+  withTimeZone("America/Los_Angeles", () => {
+    const latePacificMay1 = Date.UTC(2026, 4, 2, 6, 30);
+    assert.equal(extractCreatedDate(latePacificMay1, "May 2nd, 2026"), "2026-05-01");
+  });
+});
+
 test("ensures a task marker exists", () => {
   assert.equal(ensureTodoString("Plan launch"), "{{[[TODO]]}} Plan launch");
   assert.equal(ensureTodoString("{{[[TODO]]}} Plan launch"), "{{[[TODO]]}} Plan launch");
 });
+
+function withTimeZone(timeZone, callback) {
+  const previousTimeZone = process.env.TZ;
+  process.env.TZ = timeZone;
+  try {
+    callback();
+  } finally {
+    if (previousTimeZone === undefined) {
+      delete process.env.TZ;
+    } else {
+      process.env.TZ = previousTimeZone;
+    }
+  }
+}
