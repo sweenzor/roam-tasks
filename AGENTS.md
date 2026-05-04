@@ -2,6 +2,14 @@
 
 Guidance for coding agents working in this repository.
 
+## Engineering Non-Negotiables
+
+- Surface assumptions before building. Wrong assumptions held silently are the most common failure mode.
+- Stop and ask when requirements conflict. Do not guess.
+- Push back when warranted. The agent or engineer is not a yes-machine.
+- Prefer the boring, obvious solution. Cleverness is expensive.
+- Touch only what you are asked to touch.
+
 ## Project
 
 Roam Tasks is a local-first task management web app backed by Roam Research's desktop Local API.
