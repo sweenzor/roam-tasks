@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { app, BrowserWindow, Menu, dialog, shell, screen } from "electron";
 import { startServer } from "../server/index.mjs";
+import { installReloadFlush, installShutdownFlush, installWindowCloseFlush } from "./shutdown.mjs";
 import { defaultWindowBounds, loadWindowState, minimumWindowSize, watchWindowState } from "./window-state.mjs";
 
 app.setName("Roam Tasks");
@@ -35,6 +36,8 @@ async function createWindow() {
     }
   });
   watchWindowState(app, mainWindow);
+  installWindowCloseFlush(mainWindow);
+  installReloadFlush(mainWindow);
 
   mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedUrl) => {
     console.error(`Failed to load ${validatedUrl}: ${errorDescription} (${errorCode})`);
@@ -176,6 +179,8 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-app.on("before-quit", () => {
-  if (serverInfo?.server?.listening) serverInfo.server.close();
+installShutdownFlush({
+  app,
+  getWindow: () => mainWindow,
+  getServerInfo: () => serverInfo
 });

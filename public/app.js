@@ -13,6 +13,7 @@ import {
   sortTasks,
   updateLocalTaskState
 } from "./gtd-model.js";
+import { createLocalStoreSaveQueue } from "./local-store-save-queue.js";
 import { timestampIso } from "./task-view-model.js";
 
 const storageKeys = {
@@ -656,7 +657,15 @@ function effectiveTasks() {
   return deriveEffectiveTasks(state.roamTasks, state.localTasks, state.localState);
 }
 
-let localStoreSaveQueue = Promise.resolve();
+const localStoreSaveQueue = createLocalStoreSaveQueue({
+  saveSnapshot: saveLocalStoreSnapshot
+});
+
+globalThis.roamTasks = {
+  ...(globalThis.roamTasks || {}),
+  flushLocalStoreSaves,
+  hasPendingLocalStoreSaves
+};
 
 async function loadLocalStore() {
   const legacyStore = readLegacyLocalStore();
@@ -684,10 +693,15 @@ async function loadLocalStore() {
 }
 
 function persistLocalStore() {
-  const snapshot = snapshotLocalStore();
-  localStoreSaveQueue = localStoreSaveQueue
-    .catch(() => {})
-    .then(() => saveLocalStoreSnapshot(snapshot));
+  localStoreSaveQueue.enqueue(snapshotLocalStore());
+}
+
+async function flushLocalStoreSaves() {
+  return localStoreSaveQueue.flush();
+}
+
+function hasPendingLocalStoreSaves() {
+  return localStoreSaveQueue.hasPending();
 }
 
 async function saveLocalStoreSnapshot(snapshot) {

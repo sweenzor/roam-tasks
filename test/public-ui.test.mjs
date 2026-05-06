@@ -23,6 +23,15 @@ test("renderer migrates legacy localStorage sandbox data to the local JSON store
   assert.match(script, /await saveLocalStoreSnapshot\(snapshotLocalStore\(\)\)/);
 });
 
+test("renderer exposes a local store flush for Electron restarts", async () => {
+  const script = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
+
+  assert.match(script, /createLocalStoreSaveQueue/);
+  assert.match(script, /globalThis\.roamTasks =/);
+  assert.match(script, /flushLocalStoreSaves/);
+  assert.match(script, /hasPendingLocalStoreSaves/);
+});
+
 test("renderer only requests completed tasks for views that need them", async () => {
   const script = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
   assert.match(script, /function shouldLoadDoneTasks\(\)/);
