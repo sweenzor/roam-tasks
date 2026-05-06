@@ -66,6 +66,17 @@ test("renderer supports local bulk categorization", async () => {
   assert.match(script, /function bulkChanges\(\)/);
 });
 
+test("renderer separates project and GTD bucket metadata by view", async () => {
+  const script = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
+
+  assert.match(script, /state\.view === "projects" \? bucketLine\(task\) : projectLine\(task\)/);
+  assert.match(script, /function projectLine\(task\)/);
+  assert.match(script, /const line = metaLine\("project"\)/);
+  assert.match(script, /function bucketLine\(task\)/);
+  assert.match(script, /const line = metaLine\("bucket"\)/);
+  assert.doesNotMatch(script, /metaLine\("gtd"\)/);
+});
+
 test("renderer exposes the completed-task slider only for Review", async () => {
   const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
   const script = await readFile(new URL("../public/app.js", import.meta.url), "utf8");

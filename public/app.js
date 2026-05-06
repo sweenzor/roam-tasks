@@ -764,8 +764,8 @@ async function openRoamTarget({ title, uid, fallbackHref }) {
 }
 
 function renderTaskMeta(task, meta) {
-  const gtd = gtdLine(task);
-  if (gtd) meta.append(gtd);
+  const organization = state.view === "projects" ? bucketLine(task) : projectLine(task);
+  if (organization) meta.append(organization);
 
   const dates = dateLine(task);
   if (dates) meta.append(dates);
@@ -792,20 +792,22 @@ function renderTaskMeta(task, meta) {
   if (detail) meta.append(detail);
 }
 
-function gtdLine(task) {
-  const chips = [];
-  if (task.gtdStatus && task.gtdStatus !== "inbox") {
-    const status = chip(gtdStatusLabels[task.gtdStatus] || task.gtdStatus);
-    status.classList.add("gtd-status-chip", `gtd-${task.gtdStatus}`);
-    chips.push(status);
-  }
-  if (projectName(task)) chips.push(chip(projectName(task)));
-  if (task.context) chips.push(chip(task.context));
-  if (task.waitingFor) chips.push(chip(`waiting: ${task.waitingFor}`));
-  if (!chips.length) return null;
+function projectLine(task) {
+  const project = projectName(task);
+  if (!project) return null;
 
-  const line = metaLine("gtd");
-  for (const node of chips) line.append(node);
+  const line = metaLine("project");
+  line.append(chip(project));
+  return line;
+}
+
+function bucketLine(task) {
+  if (!task.gtdStatus) return null;
+
+  const bucket = chip(gtdStatusLabels[task.gtdStatus] || task.gtdStatus);
+  bucket.classList.add("gtd-status-chip", `gtd-${task.gtdStatus}`);
+  const line = metaLine("bucket");
+  line.append(bucket);
   return line;
 }
 
