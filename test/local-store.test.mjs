@@ -44,14 +44,31 @@ test("JSON local store writes normalized GTD state to disk", async () => {
   }
 });
 
-test("JSON local store surfaces malformed JSON instead of replacing it", async () => {
+test("JSON local store preserves malformed JSON and recovers to a clean GTD store", async () => {
   const dir = await mkdtemp(join(tmpdir(), "roam-tasks-store-"));
   try {
     const path = join(dir, "gtd-state.json");
     await writeFile(path, "{ bad json", "utf8");
     const store = createJsonLocalStore(path);
 
-    await assert.rejects(store.read(), SyntaxError);
+    assert.deepEqual(await store.read(), {
+      version: 1,
+      localTasks: [],
+      localState: {}
+    });
+    assert.deepEqual(JSON.parse(await readFile(path, "utf8")), {
+      version: 1,
+      localTasks: [],
+      localState: {}
+    });
+
+    const info = store.info();
+    assert.equal(info.filePath, path);
+    assert.equal(info.recovery.errorName, "SyntaxError");
+    assert.equal(typeof info.recovery.error, "string");
+    assert.notEqual(info.recovery.error, "");
+    assert.match(info.recovery.preservedPath, /gtd-state\.json\.corrupt-/);
+    assert.equal(await readFile(info.recovery.preservedPath, "utf8"), "{ bad json");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

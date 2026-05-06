@@ -59,7 +59,8 @@ input:disabled {
 }
 
 .list-head h2,
-.setup-panel h2 {
+.setup-panel h2,
+.store-notice h2 {
   margin: 0;
   font-size: 1rem;
   line-height: 1.1;
@@ -437,6 +438,34 @@ select.input {
   background: rgb(231 197 154 / 0.1);
   border-radius: 4px;
   padding: 10px;
+}
+
+.store-notice {
+  border: 1px solid rgb(231 197 154 / 0.48);
+  background: rgb(231 197 154 / 0.1);
+  border-radius: 4px;
+  padding: 10px;
+}
+
+.store-notice-body {
+  display: grid;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.store-notice-row {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.store-notice-row code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink);
 }
 
 code {

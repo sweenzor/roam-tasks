@@ -247,14 +247,14 @@ async function handleApi(request, response, url, context) {
 
   if (request.method === "GET" && url.pathname === "/api/local-state") {
     const localState = await context.localStore.read();
-    sendJson(response, 200, localState);
+    sendJson(response, 200, localStoreResponse(context, localState));
     return;
   }
 
   if (request.method === "POST" && url.pathname === "/api/local-state") {
     const body = await readJsonBody(request);
     const localState = await context.localStore.write(body);
-    sendJson(response, 200, localState);
+    sendJson(response, 200, localStoreResponse(context, localState));
     return;
   }
 
@@ -766,6 +766,19 @@ function sendJson(response, status, payload) {
     "Cache-Control": "no-store"
   });
   response.end(JSON.stringify(payload));
+}
+
+function localStoreResponse(context, localState) {
+  const info = context.localStore.info?.() || {};
+  const storePath = info.filePath || context.localStore.filePath;
+  const diagnostics = {
+    ...(storePath ? { storePath } : {}),
+    ...(info.recovery ? { recovery: info.recovery } : {})
+  };
+  return {
+    ...localState,
+    ...diagnostics
+  };
 }
 
 function badRequest(message) {

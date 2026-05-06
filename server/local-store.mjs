@@ -9,19 +9,25 @@ export function defaultLocalStorePath() {
 }
 
 export function createJsonLocalStore(filePath = defaultLocalStorePath()) {
+  let lastRecovery = null;
+
   return {
     filePath,
     async read() {
-      return readLocalStoreFile(filePath);
+      const result = await readLocalStoreFile(filePath);
+      if (result.recovery) lastRecovery = result.recovery;
+      return result.store;
     },
     async write(data) {
       const normalized = normalizeLocalStore(data);
-      await mkdir(dirname(filePath), { recursive: true });
-      const suffix = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const temporaryPath = `${filePath}.${suffix}.tmp`;
-      await writeFile(temporaryPath, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
-      await rename(temporaryPath, filePath);
+      await writeLocalStoreFile(filePath, normalized);
       return normalized;
+    },
+    info() {
+      return {
+        filePath,
+        recovery: lastRecovery
+      };
     }
   };
 }
@@ -42,11 +48,55 @@ export function normalizeLocalStore(data = {}) {
 async function readLocalStoreFile(filePath) {
   try {
     const data = JSON.parse(await readFile(filePath, "utf8"));
-    return normalizeLocalStore(data);
+    return {
+      store: normalizeLocalStore(data),
+      recovery: null
+    };
   } catch (error) {
-    if (error.code === "ENOENT") return normalizeLocalStore();
+    if (error.code === "ENOENT") {
+      return {
+        store: normalizeLocalStore(),
+        recovery: null
+      };
+    }
+    if (error instanceof SyntaxError) {
+      return recoverCorruptedLocalStore(filePath, error);
+    }
     throw error;
   }
+}
+
+async function recoverCorruptedLocalStore(filePath, error) {
+  const recoveredAt = new Date().toISOString();
+  const preservedPath = corruptedLocalStorePath(filePath, recoveredAt);
+  const store = normalizeLocalStore();
+
+  await rename(filePath, preservedPath);
+  await writeLocalStoreFile(filePath, store);
+
+  return {
+    store,
+    recovery: {
+      error: error.message || String(error),
+      errorName: error.name || "Error",
+      preservedPath,
+      recoveredAt
+    }
+  };
+}
+
+async function writeLocalStoreFile(filePath, store) {
+  await mkdir(dirname(filePath), { recursive: true });
+  const suffix = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const temporaryPath = `${filePath}.${suffix}.tmp`;
+  await writeFile(temporaryPath, `${JSON.stringify(store, null, 2)}\n`, "utf8");
+  await rename(temporaryPath, filePath);
+}
+
+function corruptedLocalStorePath(filePath, recoveredAt) {
+  const timestamp = recoveredAt.replace(/[:.]/g, "-");
+  const suffix = `${timestamp}-${process.pid}-${Math.random().toString(36).slice(2)}`;
+  return `${filePath}.corrupt-${suffix}`;
 }
 
 function isPlainObject(value) {

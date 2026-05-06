@@ -32,6 +32,19 @@ test("renderer exposes a local store flush for Electron restarts", async () => {
   assert.match(script, /hasPendingLocalStoreSaves/);
 });
 
+test("renderer surfaces local JSON store recovery diagnostics", async () => {
+  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  const script = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
+
+  assert.match(html, /id="localStoreNotice"/);
+  assert.match(html, /id="localStoreNoticeBody"/);
+  assert.match(script, /localStoreInfo: \{ storePath: "", recovery: null \}/);
+  assert.match(script, /state\.localStoreInfo = normalizeLocalStoreInfo\(response\)/);
+  assert.match(script, /function renderLocalStoreNotice\(\)/);
+  assert.match(script, /storeNoticeRow\("Active store"/);
+  assert.match(script, /storeNoticeRow\("Recovery error"/);
+});
+
 test("renderer only requests completed tasks for views that need them", async () => {
   const script = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
   assert.match(script, /function shouldLoadDoneTasks\(\)/);

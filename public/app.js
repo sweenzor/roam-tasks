@@ -44,6 +44,7 @@ const state = {
   showCompleted: loadShowCompleted(),
   includeDoneLoaded: false,
   loading: false,
+  localStoreInfo: { storePath: "", recovery: null },
   pendingRemovals: new Map(),
   selectedTaskIds: new Set(),
   visibleTaskIds: new Set()
@@ -71,6 +72,8 @@ const els = {
   bulkWaitingInput: document.querySelector("#bulkWaitingInput"),
   bulkApplyButton: document.querySelector("#bulkApplyButton"),
   bulkClearButton: document.querySelector("#bulkClearButton"),
+  localStoreNotice: document.querySelector("#localStoreNotice"),
+  localStoreNoticeBody: document.querySelector("#localStoreNoticeBody"),
   refreshButton: document.querySelector("#refreshButton"),
   taskList: document.querySelector("#taskList"),
   taskTemplate: document.querySelector("#taskTemplate"),
@@ -289,6 +292,7 @@ function render() {
   els.showCompletedToggle.checked = state.showCompleted;
   els.compactToggle.checked = state.compact;
   els.taskList.classList.toggle("compact", state.compact);
+  renderLocalStoreNotice();
   els.taskList.innerHTML = "";
 
   if (!visible.length) {
@@ -671,7 +675,9 @@ async function loadLocalStore() {
   const legacyStore = readLegacyLocalStore();
 
   try {
-    const stored = normalizeLocalStore(await api("/api/local-state"));
+    const response = await api("/api/local-state");
+    const stored = normalizeLocalStore(response);
+    state.localStoreInfo = normalizeLocalStoreInfo(response);
     const shouldMigrateLegacy = !hasLocalStoreData(stored) && hasLocalStoreData(legacyStore);
     const nextStore = shouldMigrateLegacy ? legacyStore : stored;
 
@@ -730,6 +736,27 @@ function normalizeLocalStore(data = {}) {
     localTasks: Array.isArray(data.localTasks) ? data.localTasks : [],
     localState: normalizeLocalState(data.localState)
   };
+}
+
+function normalizeLocalStoreInfo(data = {}) {
+  return {
+    storePath: typeof data.storePath === "string" ? data.storePath : "",
+    recovery: normalizeLocalStoreRecovery(data.recovery)
+  };
+}
+
+function normalizeLocalStoreRecovery(recovery) {
+  if (!recovery || typeof recovery !== "object" || Array.isArray(recovery)) return null;
+  return {
+    error: stringValue(recovery.error),
+    errorName: stringValue(recovery.errorName),
+    preservedPath: stringValue(recovery.preservedPath),
+    recoveredAt: stringValue(recovery.recoveredAt)
+  };
+}
+
+function stringValue(value) {
+  return typeof value === "string" ? value : "";
 }
 
 function hasLocalStoreData(store) {
@@ -1026,6 +1053,30 @@ function renderEmpty(message) {
   empty.className = "empty-state";
   empty.textContent = message;
   els.taskList.append(empty);
+}
+
+function renderLocalStoreNotice() {
+  const recovery = state.localStoreInfo.recovery;
+  els.localStoreNotice.classList.toggle("hidden", !recovery);
+  els.localStoreNoticeBody.replaceChildren();
+  if (!recovery) return;
+
+  els.localStoreNoticeBody.replaceChildren(
+    storeNoticeRow("Active store", state.localStoreInfo.storePath || "Unknown"),
+    storeNoticeRow("Preserved file", recovery.preservedPath || "Unavailable"),
+    storeNoticeRow("Recovery error", recovery.error || "Could not parse local GTD store JSON")
+  );
+}
+
+function storeNoticeRow(label, value) {
+  const row = document.createElement("div");
+  row.className = "store-notice-row";
+  const labelNode = document.createElement("span");
+  labelNode.textContent = label;
+  const valueNode = document.createElement("code");
+  valueNode.textContent = value;
+  row.append(labelNode, valueNode);
+  return row;
 }
 
 function setStatus(message = "", busy = false, isError = false) {

@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Readable } from "node:stream";
 import { createAppHandler } from "../server/index.mjs";
+import { createJsonLocalStore } from "../server/local-store.mjs";
 
 const writableGraph = {
   name: "demo",
@@ -115,6 +119,39 @@ test("local GTD state is persisted outside Roam", async () => {
     localTasks: [{ uid: "local-1", text: "Capture locally" }],
     localState: { "roam-1": { gtdStatus: "next", project: "Launch" } }
   });
+});
+
+test("local GTD state recovers corrupted JSON with inspectable diagnostics", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "roam-tasks-api-store-"));
+  try {
+    const path = join(dir, "gtd-state.json");
+    await writeFile(path, "{ bad json", "utf8");
+    const handler = appHandler({
+      localStore: createJsonLocalStore(path)
+    });
+
+    const response = await invoke(handler, {
+      method: "GET",
+      url: "/api/local-state"
+    });
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.json.localTasks, []);
+    assert.deepEqual(response.json.localState, {});
+    assert.equal(response.json.version, 1);
+    assert.equal(response.json.storePath, path);
+    assert.equal(response.json.recovery.errorName, "SyntaxError");
+    assert.equal(typeof response.json.recovery.error, "string");
+    assert.notEqual(response.json.recovery.error, "");
+    assert.equal(await readFile(response.json.recovery.preservedPath, "utf8"), "{ bad json");
+    assert.deepEqual(JSON.parse(await readFile(path, "utf8")), {
+      version: 1,
+      localTasks: [],
+      localState: {}
+    });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test("patch reads the current Roam block before updating", async () => {
