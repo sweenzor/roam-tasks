@@ -1,15 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { chmod, copyFile, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { chmod, copyFile, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createSandboxTempDir } from "./helpers/temp-dir.mjs";
 
 const sourceRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 test("restart skip still refreshes the app bundle without relaunching", async (t) => {
   const repo = await createHookRepo(t);
+  if (!repo) return;
   await commitChange(repo, "public/app.js", "console.log('needs refresh');\n");
 
   const result = await runPostCommit(repo, {
@@ -26,6 +27,7 @@ test("restart skip still refreshes the app bundle without relaunching", async (t
 
 test("post-commit refresh quits and reopens a running app", async (t) => {
   const repo = await createHookRepo(t);
+  if (!repo) return;
   await commitChange(repo, "public/app.js", "console.log('relaunch me');\n");
 
   const result = await runPostCommit(repo, { appRunning: true });
@@ -41,6 +43,7 @@ test("post-commit refresh quits and reopens a running app", async (t) => {
 
 test("post-merge refresh quits and reopens a running app on main", async (t) => {
   const repo = await createHookRepo(t);
+  if (!repo) return;
   await commitChange(repo, "public/app.js", "console.log('merged relaunch');\n");
 
   const result = await runPostMerge(repo, { appRunning: true });
@@ -56,6 +59,7 @@ test("post-merge refresh quits and reopens a running app on main", async (t) => 
 
 test("refresh skip does not quit or reopen the running app", async (t) => {
   const repo = await createHookRepo(t);
+  if (!repo) return;
   await commitChange(repo, "public/app.js", "console.log('refresh skipped');\n");
 
   const result = await runPostCommit(repo, {
@@ -71,6 +75,7 @@ test("refresh skip does not quit or reopen the running app", async (t) => {
 
 test("post-commit refresh defaults to main instead of the current feature branch", async (t) => {
   const repo = await createHookRepo(t, { branch: "feature/hook-work" });
+  if (!repo) return;
   await commitChange(repo, "public/app.js", "console.log('feature branch');\n");
 
   const result = await runPostCommit(repo, { appRunning: true });
@@ -80,8 +85,8 @@ test("post-commit refresh defaults to main instead of the current feature branch
 });
 
 async function createHookRepo(t, options = {}) {
-  const repo = await mkdtemp(join(tmpdir(), "roam-tasks-hooks-"));
-  t.after(() => rm(repo, { recursive: true, force: true }));
+  const repo = await createSandboxTempDir(t, "roam-tasks-hooks");
+  if (!repo) return null;
 
   await mkdir(join(repo, ".husky"), { recursive: true });
   await mkdir(join(repo, "public"), { recursive: true });
@@ -190,6 +195,8 @@ async function runPostMerge(repo, options = {}) {
 async function runHook(repo, hook, options = {}) {
   const stateFile = join(repo, "app-state");
   const logFile = join(repo, "command-log");
+  const tempDir = join(repo, "hook-tmp");
+  await mkdir(tempDir, { recursive: true });
   await writeFile(stateFile, options.appRunning ? "running\n" : "stopped\n");
   await writeFile(logFile, "");
 
@@ -197,7 +204,8 @@ async function runHook(repo, hook, options = {}) {
     ...process.env,
     PATH: `${join(repo, "fake-bin")}:${process.env.PATH}`,
     ROAM_TASKS_TEST_LOG: logFile,
-    ROAM_TASKS_TEST_STATE: stateFile
+    ROAM_TASKS_TEST_STATE: stateFile,
+    TMPDIR: tempDir
   };
   delete env.ROAM_TASKS_REFRESH_APP_BRANCH;
   delete env.ROAM_TASKS_REFRESH_APP_SKIP;

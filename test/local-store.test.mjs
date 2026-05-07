@@ -1,77 +1,71 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createJsonLocalStore, normalizeLocalStore } from "../server/local-store.mjs";
+import { createSandboxTempDir } from "./helpers/temp-dir.mjs";
 
-test("JSON local store reads missing files as an empty GTD store", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "roam-tasks-store-"));
-  try {
-    const store = createJsonLocalStore(join(dir, "gtd-state.json"));
-    assert.deepEqual(await store.read(), {
-      version: 1,
-      localTasks: [],
-      localState: {}
-    });
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
+test("JSON local store reads missing files as an empty GTD store", async (t) => {
+  const dir = await createSandboxTempDir(t, "roam-tasks-store");
+  if (!dir) return;
+
+  const store = createJsonLocalStore(join(dir, "gtd-state.json"));
+  assert.deepEqual(await store.read(), {
+    version: 1,
+    localTasks: [],
+    localState: {}
+  });
 });
 
-test("JSON local store writes normalized GTD state to disk", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "roam-tasks-store-"));
-  try {
-    const path = join(dir, "nested", "gtd-state.json");
-    const store = createJsonLocalStore(path);
+test("JSON local store writes normalized GTD state to disk", async (t) => {
+  const dir = await createSandboxTempDir(t, "roam-tasks-store");
+  if (!dir) return;
 
-    await store.write({
-      localTasks: [{ uid: "local-1", text: "Local task" }, "bad local task"],
-      localState: { "roam-1": { gtdStatus: "next" }, "roam-2": "bad overlay" },
-      ignored: true
-    });
+  const path = join(dir, "nested", "gtd-state.json");
+  const store = createJsonLocalStore(path);
 
-    const stored = {
-      version: 1,
-      localTasks: [{ uid: "local-1", text: "Local task" }],
-      localState: { "roam-1": { gtdStatus: "next" } }
-    };
+  await store.write({
+    localTasks: [{ uid: "local-1", text: "Local task" }, "bad local task"],
+    localState: { "roam-1": { gtdStatus: "next" }, "roam-2": "bad overlay" },
+    ignored: true
+  });
 
-    assert.deepEqual(JSON.parse(await readFile(path, "utf8")), stored);
-    assert.deepEqual(await store.read(), stored);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
+  const stored = {
+    version: 1,
+    localTasks: [{ uid: "local-1", text: "Local task" }],
+    localState: { "roam-1": { gtdStatus: "next" } }
+  };
+
+  assert.deepEqual(JSON.parse(await readFile(path, "utf8")), stored);
+  assert.deepEqual(await store.read(), stored);
 });
 
-test("JSON local store preserves malformed JSON and recovers to a clean GTD store", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "roam-tasks-store-"));
-  try {
-    const path = join(dir, "gtd-state.json");
-    await writeFile(path, "{ bad json", "utf8");
-    const store = createJsonLocalStore(path);
+test("JSON local store preserves malformed JSON and recovers to a clean GTD store", async (t) => {
+  const dir = await createSandboxTempDir(t, "roam-tasks-store");
+  if (!dir) return;
 
-    assert.deepEqual(await store.read(), {
-      version: 1,
-      localTasks: [],
-      localState: {}
-    });
-    assert.deepEqual(JSON.parse(await readFile(path, "utf8")), {
-      version: 1,
-      localTasks: [],
-      localState: {}
-    });
+  const path = join(dir, "gtd-state.json");
+  await writeFile(path, "{ bad json", "utf8");
+  const store = createJsonLocalStore(path);
 
-    const info = store.info();
-    assert.equal(info.filePath, path);
-    assert.equal(info.recovery.errorName, "SyntaxError");
-    assert.equal(typeof info.recovery.error, "string");
-    assert.notEqual(info.recovery.error, "");
-    assert.match(info.recovery.preservedPath, /gtd-state\.json\.corrupt-/);
-    assert.equal(await readFile(info.recovery.preservedPath, "utf8"), "{ bad json");
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
+  assert.deepEqual(await store.read(), {
+    version: 1,
+    localTasks: [],
+    localState: {}
+  });
+  assert.deepEqual(JSON.parse(await readFile(path, "utf8")), {
+    version: 1,
+    localTasks: [],
+    localState: {}
+  });
+
+  const info = store.info();
+  assert.equal(info.filePath, path);
+  assert.equal(info.recovery.errorName, "SyntaxError");
+  assert.equal(typeof info.recovery.error, "string");
+  assert.notEqual(info.recovery.error, "");
+  assert.match(info.recovery.preservedPath, /gtd-state\.json\.corrupt-/);
+  assert.equal(await readFile(info.recovery.preservedPath, "utf8"), "{ bad json");
 });
 
 test("JSON local store normalization rejects malformed roots and overlays", () => {

@@ -6,6 +6,7 @@ node_modules/
 npm-debug.log*
 coverage/
 dist/
+.test-tmp/
 assets/app-icon.icns
 assets/app-icon.iconset/
 .roam-tasks-cache/
