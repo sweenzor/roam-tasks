@@ -42,7 +42,8 @@ test("renderer surfaces local JSON store recovery diagnostics", async () => {
   assert.match(script, /state\.localStoreInfo = normalizeLocalStoreInfo\(response\)/);
   assert.match(script, /function renderLocalStoreNotice\(\)/);
   assert.match(script, /storeNoticeRow\("Active store"/);
-  assert.match(script, /storeNoticeRow\("Recovery error"/);
+  assert.match(script, /storeNoticeRow\("Preserved data"/);
+  assert.match(script, /storeNoticeRow\("Recovery issue"/);
 });
 
 test("renderer only requests completed tasks for views that need them", async () => {

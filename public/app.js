@@ -1063,8 +1063,8 @@ function renderLocalStoreNotice() {
 
   els.localStoreNoticeBody.replaceChildren(
     storeNoticeRow("Active store", state.localStoreInfo.storePath || "Unknown"),
-    storeNoticeRow("Preserved file", recovery.preservedPath || "Unavailable"),
-    storeNoticeRow("Recovery error", recovery.error || "Could not parse local GTD store JSON")
+    storeNoticeRow("Preserved data", recovery.preservedPath || "Unavailable"),
+    storeNoticeRow("Recovery issue", recovery.error || "Could not load local GTD store safely")
   );
 }
 
