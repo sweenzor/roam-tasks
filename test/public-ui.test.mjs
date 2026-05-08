@@ -102,6 +102,8 @@ test("renderer wires keyboard-first GTD triage shortcuts", async () => {
 
   assert.match(html, /id="shortcutHint"/);
   assert.match(script, /from "\.\/keyboard-triage\.js"/);
+  assert.match(script, /gtdViewIds,/);
+  assert.match(script, /gtdTriageViewKeys,/);
   assert.match(script, /keyboardShortcutHintVisibleMs = 6000/);
   assert.match(script, /keyboardShortcutHintFadeMs = 700/);
   assert.match(script, /window\.addEventListener\("keydown", handleGlobalKeydown\)/);
@@ -113,9 +115,16 @@ test("renderer wires keyboard-first GTD triage shortcuts", async () => {
   assert.match(script, /function focusTaskByKeyboard\(direction\)/);
   assert.match(script, /nextKeyboardTaskIndex\(rows\.length, currentIndex, direction\)/);
   assert.match(script, /function toggleFocusedTaskSelection\(\)/);
+  assert.match(script, /resolveKeyboardSelectionShortcut\(key\)/);
+  assert.match(script, /function selectVisibleTasksByKeyboard\(\)/);
+  assert.match(script, /toggleVisibleSelection\(true\)/);
+  assert.match(script, /function clearSelectionByKeyboard\(\)/);
+  assert.match(script, /event\.key === "Escape" && clearSelectionByKeyboard\(\)/);
   assert.match(script, /toggleTaskSelected\(uid\)/);
   assert.match(script, /focusTaskRow\(uid\)/);
   assert.match(script, /function renderKeyboardShortcutHint\(prefix\)/);
+  assert.match(script, /action === "view" \? gtdTriageViewKeys : gtdTriageBucketKeys/);
+  assert.match(script, /function shortcutLabel\(bucket\)/);
   assert.match(script, /function scheduleKeyboardShortcutHintFade\(\)/);
   assert.match(script, /function hideKeyboardShortcutHint\(\)/);
   assert.match(script, /function clearKeyboardShortcutHintTimers\(\)/);
@@ -133,7 +142,7 @@ test("renderer wires keyboard-first GTD triage shortcuts", async () => {
   assert.match(script, /function focusedTaskId\(\)/);
   assert.match(script, /node\.dataset\.taskUid = task\.uid/);
   assert.match(styles, /\.shortcut-hint\.fading/);
-  assert.match(styles, /flex-wrap: nowrap/);
+  assert.match(styles, /flex-wrap: wrap/);
   assert.match(styles, /width: max-content/);
   assert.match(styles, /font-size: 16px/);
   assert.match(styles, /min-width: 32px/);
@@ -153,7 +162,8 @@ test("renderer supports dragging selected tasks into GTD buckets", async () => {
   assert.match(script, /function bindViewDropTarget\(button\)/);
   assert.match(script, /function dropStatusAt\(x, y\)/);
   assert.match(script, /function moveTasksToStatus\(taskIds, status\)/);
-  assert.match(script, /updateLocalTask\(task, \{ gtdStatus: status \}\)/);
+  assert.match(script, /const changes = triageChangesForBucket\(status\)/);
+  assert.match(script, /updateLocalTask\(task, changes\)/);
   assert.match(script, /function ensureTaskDragBadge\(count\)/);
   assert.match(script, /function updateTaskDragBadge\(x, y\)/);
   assert.match(script, /dataTransfer\.setDragImage\(badge, 26, 18\)/);

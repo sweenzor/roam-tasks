@@ -6,6 +6,7 @@ import {
   getGtdCounts,
   gtdViewIds,
   gtdStatusLabels,
+  gtdViewIds,
   isDailyNoteTitle,
   isRoamDateTitle,
   projectName,
@@ -16,9 +17,11 @@ import {
 import {
   gtdTriageBucketKeys,
   gtdTriageShortcutPrefixes,
+  gtdTriageViewKeys,
   isKeyboardShortcutEditableTarget,
   nextKeyboardTaskIndex,
   resolveGtdTriageShortcut,
+  resolveKeyboardSelectionShortcut,
   shortcutKey,
   taskIdsForKeyboardTriage,
   triageChangesForBucket
@@ -183,6 +186,10 @@ function bindEvents() {
   });
   for (const control of bulkControls()) {
     control.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && clearSelectionByKeyboard()) {
+        event.preventDefault();
+        return;
+      }
       if (event.key !== "Enter") return;
       event.preventDefault();
       applyBulkChanges();
@@ -294,6 +301,17 @@ function handleTaskListKeyboardShortcut(event) {
     event.preventDefault();
     return focusTaskByKeyboard(key === "j" ? 1 : -1);
   }
+  const selectionShortcut = resolveKeyboardSelectionShortcut(key);
+  if (selectionShortcut === "select-visible") {
+    const selected = selectVisibleTasksByKeyboard();
+    if (selected) event.preventDefault();
+    return selected;
+  }
+  if (selectionShortcut === "clear") {
+    const cleared = clearSelectionByKeyboard();
+    if (cleared) event.preventDefault();
+    return cleared;
+  }
   if (key !== "x") return false;
 
   const selected = toggleFocusedTaskSelection();
@@ -332,6 +350,24 @@ function focusTaskRow(uid) {
   row?.focus();
 }
 
+function selectVisibleTasksByKeyboard() {
+  if (!state.visibleTaskIds.size) return false;
+
+  clearKeyboardScheduleTriage();
+  toggleVisibleSelection(true);
+  return true;
+}
+
+function clearSelectionByKeyboard() {
+  if (!state.selectedTaskIds.size && !keyboardScheduleTaskIds.length) return false;
+
+  clearKeyboardScheduleTriage();
+  clearSelection();
+  resetBulkInputs();
+  render();
+  return true;
+}
+
 function keyboardTaskRows({ includePending = false } = {}) {
   const rows = [...els.taskList.querySelectorAll(".task-row")];
   if (includePending) return rows;
@@ -368,13 +404,14 @@ function renderKeyboardShortcutHint(prefix) {
 
   const options = document.createElement("span");
   options.className = "shortcut-hint-options";
-  for (const [key, bucket] of Object.entries(gtdTriageBucketKeys)) {
+  const shortcutKeys = action === "view" ? gtdTriageViewKeys : gtdTriageBucketKeys;
+  for (const [key, bucket] of Object.entries(shortcutKeys)) {
     const item = document.createElement("span");
     item.className = "shortcut-hint-option";
     const keyNode = document.createElement("kbd");
     keyNode.textContent = key.toUpperCase();
     const text = document.createElement("span");
-    text.textContent = gtdStatusLabels[bucket] || bucket;
+    text.textContent = shortcutLabel(bucket);
     item.append(keyNode, text);
     options.append(item);
   }
@@ -382,6 +419,10 @@ function renderKeyboardShortcutHint(prefix) {
   els.shortcutHint.replaceChildren(label, options);
   els.shortcutHint.classList.remove("hidden", "fading");
   scheduleKeyboardShortcutHintFade();
+}
+
+function shortcutLabel(bucket) {
+  return gtdStatusLabels[bucket] || viewTitles[bucket] || bucket;
 }
 
 function scheduleKeyboardShortcutHintFade() {
@@ -999,13 +1040,15 @@ function draggedTaskIdsFromEvent(event) {
 
 function moveTasksToStatus(taskIds, status) {
   if (!isDropStatus(status)) return;
+  const changes = triageChangesForBucket(status);
+  if (!Object.keys(changes).length) return;
 
   const idSet = new Set(taskIds);
   const tasks = state.tasks.filter((task) => idSet.has(task.uid) && !isPendingRemoval(task.uid));
   if (!tasks.length) return;
 
   for (const task of tasks) {
-    updateLocalTask(task, { gtdStatus: status });
+    updateLocalTask(task, changes);
   }
   clearSelection();
   resetBulkInputs();

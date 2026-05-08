@@ -4,6 +4,7 @@ import {
   isKeyboardShortcutEditableTarget,
   nextKeyboardTaskIndex,
   resolveGtdTriageShortcut,
+  resolveKeyboardSelectionShortcut,
   shortcutKey,
   taskIdsForKeyboardTriage,
   triageChangesForBucket
@@ -15,12 +16,24 @@ test("GTD triage keyboard prefixes bind view switching and task moves", () => {
   assert.deepEqual(resolveGtdTriageShortcut("g", "n"), { action: "view", bucket: "next" });
   assert.deepEqual(resolveGtdTriageShortcut("g", "w"), { action: "view", bucket: "waiting" });
   assert.deepEqual(resolveGtdTriageShortcut("g", "s"), { action: "view", bucket: "scheduled" });
+  assert.deepEqual(resolveGtdTriageShortcut("g", "y"), { action: "view", bucket: "someday" });
+  assert.deepEqual(resolveGtdTriageShortcut("g", "p"), { action: "view", bucket: "projects" });
+  assert.deepEqual(resolveGtdTriageShortcut("g", "r"), { action: "view", bucket: "review" });
   assert.deepEqual(resolveGtdTriageShortcut("m", "I"), { action: "move", bucket: "inbox" });
   assert.deepEqual(resolveGtdTriageShortcut("m", "N"), { action: "move", bucket: "next" });
   assert.deepEqual(resolveGtdTriageShortcut("m", "W"), { action: "move", bucket: "waiting" });
   assert.deepEqual(resolveGtdTriageShortcut("m", "S"), { action: "move", bucket: "scheduled" });
-  assert.equal(resolveGtdTriageShortcut("g", "p"), null);
+  assert.deepEqual(resolveGtdTriageShortcut("m", "Y"), { action: "move", bucket: "someday" });
+  assert.equal(resolveGtdTriageShortcut("m", "p"), null);
+  assert.equal(resolveGtdTriageShortcut("m", "r"), null);
   assert.equal(resolveGtdTriageShortcut("x", "n"), null);
+});
+
+test("GTD triage selection shortcuts bind visible select and clear", () => {
+  assert.equal(resolveKeyboardSelectionShortcut("a"), "select-visible");
+  assert.equal(resolveKeyboardSelectionShortcut("A"), "select-visible");
+  assert.equal(resolveKeyboardSelectionShortcut("Escape"), "clear");
+  assert.equal(resolveKeyboardSelectionShortcut("x"), "");
 });
 
 test("GTD triage move changes clear conflicting bucket metadata", () => {
@@ -42,6 +55,11 @@ test("GTD triage move changes clear conflicting bucket metadata", () => {
   assert.deepEqual(triageChangesForBucket("scheduled", { dueDate: "2026-05-10" }), {
     gtdStatus: "scheduled",
     dueDate: "2026-05-10",
+    waitingFor: ""
+  });
+  assert.deepEqual(triageChangesForBucket("someday"), {
+    gtdStatus: "someday",
+    dueDate: null,
     waitingFor: ""
   });
   assert.deepEqual(triageChangesForBucket("review"), {});
@@ -72,6 +90,14 @@ test("GTD triage move changes remove tasks from their previous bucket filters", 
   assert.equal(movedToScheduled.dueDate, "2026-05-10");
   assert.deepEqual(filterGtdTasks([movedToScheduled], { view: "waiting" }).map(uid), []);
   assert.deepEqual(filterGtdTasks([movedToScheduled], { view: "scheduled" }).map(uid), ["waiting"]);
+
+  const movedToSomeday = applyLocalState(
+    task("waiting-someday", { waitingFor: "Dana", gtdStatus: "waiting" }),
+    triageChangesForBucket("someday")
+  );
+  assert.equal(movedToSomeday.waitingFor, "");
+  assert.deepEqual(filterGtdTasks([movedToSomeday], { view: "waiting" }).map(uid), []);
+  assert.deepEqual(filterGtdTasks([movedToSomeday], { view: "someday" }).map(uid), ["waiting-someday"]);
 });
 
 test("GTD triage shortcuts ignore editable targets and reserved modifier chords", () => {
