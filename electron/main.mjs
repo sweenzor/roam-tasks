@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { app, BrowserWindow, Menu, dialog, shell, screen } from "electron";
 import { startServer } from "../server/index.mjs";
-import { migrateLegacyProfile } from "./profile-migration.mjs";
+import { legacyProfileMigrationUserMessage, migrateLegacyProfile } from "./profile-migration.mjs";
 import { installReloadFlush, installShutdownFlush, installWindowCloseFlush } from "./shutdown.mjs";
 import { defaultWindowBounds, loadWindowState, minimumWindowSize, watchWindowState } from "./window-state.mjs";
 
@@ -188,9 +188,31 @@ installShutdownFlush({
 });
 
 async function migrateLegacyProfileBeforeStart() {
+  let summary;
   try {
-    await migrateLegacyProfile({ currentUserDataPath: app.getPath("userData") });
+    summary = await migrateLegacyProfile({ currentUserDataPath: app.getPath("userData") });
   } catch (error) {
     console.warn(`Could not migrate legacy Roam Tasks profile: ${error.message || String(error)}`);
+    return;
   }
+
+  try {
+    await showLegacyProfileMigrationOutcome(summary);
+  } catch (error) {
+    console.warn(`Could not show legacy Roam Tasks profile migration outcome: ${error.message || String(error)}`);
+  }
+}
+
+async function showLegacyProfileMigrationOutcome(summary) {
+  const message = legacyProfileMigrationUserMessage(summary);
+  if (!message) return;
+
+  console.warn(message.detail);
+  await dialog.showMessageBox({
+    type: message.type,
+    title: message.title,
+    message: message.message,
+    detail: message.detail,
+    buttons: ["OK"]
+  });
 }
