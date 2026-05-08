@@ -5,7 +5,6 @@ import {
   filterGtdTasks,
   getGtdCounts,
   gtdStatusLabels,
-  gtdViewIds,
   isDailyNoteTitle,
   isRoamDateTitle,
   projectName,
@@ -15,33 +14,23 @@ import {
 } from "./gtd-model.js";
 import { createLocalStoreSaveQueue } from "./local-store-save-queue.js";
 import { timestampIso } from "./task-view-model.js";
+import { loadStoredUiState, storageKeys } from "./ui-storage.js";
 
-const storageKeys = {
-  compact: "roamTasksCompact",
-  legacyLocalState: "roamTasksLocalGtdState",
-  legacyLocalTasks: "roamTasksLocalGtdTasks",
-  pageDraft: "roamTasksPageDraft",
-  query: "roamTasksQuery",
-  sinceDate: "roamTasksSomedaySinceDate",
-  showCompleted: "roamTasksShowCompleted",
-  sort: "roamTasksSort",
-  taskDraft: "roamTasksTaskDraft",
-  view: "roamTasksView"
-};
+const storedUiState = loadStoredUiState();
 
 const state = {
   graphs: [],
   graph: null,
-  compact: loadCompact(),
+  compact: storedUiState.compact,
   roamTasks: [],
   localTasks: [],
   localState: {},
   tasks: [],
-  view: loadView(),
-  query: loadQuery(),
-  sort: loadSort(),
-  sinceDate: loadSinceDate(),
-  showCompleted: loadShowCompleted(),
+  view: storedUiState.view,
+  query: storedUiState.query,
+  sort: storedUiState.sort,
+  sinceDate: storedUiState.sinceDate,
+  showCompleted: storedUiState.showCompleted,
   includeDoneLoaded: false,
   loading: false,
   localStoreInfo: { storePath: "", recovery: null },
@@ -1137,18 +1126,6 @@ function todayIso() {
   return `${year}-${month}-${day}`;
 }
 
-function loadSinceDate() {
-  return localStorage.getItem(storageKeys.sinceDate) || "";
-}
-
-function loadShowCompleted() {
-  return localStorage.getItem(storageKeys.showCompleted) === "true";
-}
-
-function loadCompact() {
-  return localStorage.getItem(storageKeys.compact) === "true";
-}
-
 function readStoredJson(key, fallback) {
   try {
     const value = localStorage.getItem(key);
@@ -1156,21 +1133,6 @@ function readStoredJson(key, fallback) {
   } catch {
     return fallback;
   }
-}
-
-function loadView() {
-  const view = localStorage.getItem(storageKeys.view);
-  return gtdViewIds.includes(view) ? view : "inbox";
-}
-
-function loadQuery() {
-  return (localStorage.getItem(storageKeys.query) || "").trim().toLowerCase();
-}
-
-function loadSort() {
-  const sort = localStorage.getItem(storageKeys.sort);
-  if (sort === "page") return "project";
-  return ["recent", "due", "project", "updated"].includes(sort) ? sort : "recent";
 }
 
 function shouldLoadDoneTasks() {

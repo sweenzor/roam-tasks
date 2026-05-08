@@ -14,9 +14,10 @@ test("quick-add form creates local sandbox tasks", async () => {
 
 test("renderer migrates legacy localStorage sandbox data to the local JSON store", async () => {
   const script = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
+  const storage = await readFile(new URL("../public/ui-storage.js", import.meta.url), "utf8");
 
-  assert.match(script, /legacyLocalTasks: "roamTasksLocalGtdTasks"/);
-  assert.match(script, /legacyLocalState: "roamTasksLocalGtdState"/);
+  assert.match(storage, /legacyLocalTasks: "roamTasksLocalGtdTasks"/);
+  assert.match(storage, /legacyLocalState: "roamTasksLocalGtdState"/);
   assert.match(script, /function loadLocalStore\(\)/);
   assert.match(script, /function readLegacyLocalStore\(\)/);
   assert.match(script, /function clearLegacyLocalStore\(\)/);
@@ -56,23 +57,25 @@ test("renderer only requests completed tasks for views that need them", async ()
 
 test("renderer persists lightweight UI state across relaunches", async () => {
   const script = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
-  assert.match(script, /view: loadView\(\)/);
-  assert.match(script, /query: loadQuery\(\)/);
-  assert.match(script, /sort: loadSort\(\)/);
-  assert.match(script, /compact: loadCompact\(\)/);
-  assert.match(script, /showCompleted: loadShowCompleted\(\)/);
-  assert.match(script, /roamTasksCompact/);
-  assert.match(script, /roamTasksShowCompleted/);
-  assert.match(script, /roamTasksTaskDraft/);
+  const storage = await readFile(new URL("../public/ui-storage.js", import.meta.url), "utf8");
+  assert.match(script, /const storedUiState = loadStoredUiState\(\)/);
+  assert.match(script, /view: storedUiState\.view/);
+  assert.match(script, /query: storedUiState\.query/);
+  assert.match(script, /sort: storedUiState\.sort/);
+  assert.match(script, /compact: storedUiState\.compact/);
+  assert.match(script, /showCompleted: storedUiState\.showCompleted/);
+  assert.match(storage, /roamTasksCompact/);
+  assert.match(storage, /roamTasksShowCompleted/);
+  assert.match(storage, /roamTasksTaskDraft/);
   assert.match(script, /localStorage\.setItem\(storageKeys\.view, state\.view\)/);
 });
 
 test("GTD view defaults to inbox capture", async () => {
-  const script = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
+  const storage = await readFile(new URL("../public/ui-storage.js", import.meta.url), "utf8");
   const model = await readFile(new URL("../public/gtd-model.js", import.meta.url), "utf8");
 
   assert.match(model, /export const gtdViewIds = \["inbox", "next", "waiting", "scheduled", "someday", "projects", "review"\]/);
-  assert.match(script, /return gtdViewIds\.includes\(view\) \? view : "inbox"/);
+  assert.match(storage, /return gtdViewIds\.includes\(view\) \? view : "inbox"/);
 });
 
 test("renderer supports local bulk categorization", async () => {
@@ -103,13 +106,15 @@ test("renderer separates project and GTD bucket metadata by view", async () => {
 test("renderer exposes the completed-task slider only for Review", async () => {
   const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
   const script = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
+  const storage = await readFile(new URL("../public/ui-storage.js", import.meta.url), "utf8");
   const model = await readFile(new URL("../public/gtd-model.js", import.meta.url), "utf8");
 
   assert.match(html, /id="completedFilter"/);
   assert.match(html, /id="showCompletedToggle"/);
   assert.match(html, />Show completed</);
   assert.doesNotMatch(html, /data-view="done"/);
-  assert.match(script, /showCompleted: loadShowCompleted\(\)/);
+  assert.match(script, /showCompleted: storedUiState\.showCompleted/);
+  assert.match(storage, /done: "review"/);
   assert.match(script, /function showsReviewCompletedFilter\(\)/);
   assert.match(script, /els\.completedFilter\.classList\.toggle\("hidden", !showsReviewCompletedFilter\(\)\)/);
   assert.match(model, /task\.done && !\(view === "review" && showCompleted\)/);
@@ -121,15 +126,16 @@ test("renderer exposes the completed-task slider only for Review", async () => {
 test("Someday view exposes and applies the since date selector", async () => {
   const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
   const script = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
+  const storage = await readFile(new URL("../public/ui-storage.js", import.meta.url), "utf8");
   const model = await readFile(new URL("../public/gtd-model.js", import.meta.url), "utf8");
 
   assert.match(html, /id="sinceInput"/);
-  assert.match(script, /sinceDate: "roamTasksSomedaySinceDate"/);
+  assert.match(storage, /sinceDate: "roamTasksSomedaySinceDate"/);
   assert.match(script, /import \{ timestampIso \}/);
   assert.match(script, /function showsSomedaySinceFilter\(\)/);
   assert.match(script, /function hasSomedaySinceDate\(\)/);
   assert.match(script, /return state\.view === "someday"/);
-  assert.match(script, /return localStorage\.getItem\(storageKeys\.sinceDate\) \|\| ""/);
+  assert.match(storage, /return storage\.getItem\(storageKeys\.sinceDate\) \|\| ""/);
   assert.match(script, /localStorage\.removeItem\(storageKeys\.sinceDate\)/);
   assert.match(script, /els\.toolActions\.classList\.toggle\("since-active", showsSomedaySinceFilter\(\)\)/);
   assert.match(script, /els\.sinceInput\.classList\.toggle\("hidden", !showsSomedaySinceFilter\(\)\)/);
