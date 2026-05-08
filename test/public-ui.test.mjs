@@ -88,6 +88,51 @@ test("renderer supports local bulk categorization", async () => {
   assert.match(script, /function bulkChanges\(\)/);
 });
 
+test("renderer wires keyboard-first GTD triage shortcuts", async () => {
+  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  const script = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../public/styles.css", import.meta.url), "utf8");
+
+  assert.match(html, /id="shortcutHint"/);
+  assert.match(script, /from "\.\/keyboard-triage\.js"/);
+  assert.match(script, /keyboardShortcutHintVisibleMs = 6000/);
+  assert.match(script, /keyboardShortcutHintFadeMs = 700/);
+  assert.match(script, /window\.addEventListener\("keydown", handleGlobalKeydown\)/);
+  assert.match(script, /function handleGtdTriageShortcut\(event\)/);
+  assert.match(script, /key === "escape" && !els\.shortcutHint\.classList\.contains\("hidden"\)/);
+  assert.match(script, /hideKeyboardShortcutHint\(\);\n    return true/);
+  assert.match(script, /if \(handleTaskListKeyboardShortcut\(event\)\) return/);
+  assert.match(script, /function handleTaskListKeyboardShortcut\(event\)/);
+  assert.match(script, /function focusTaskByKeyboard\(direction\)/);
+  assert.match(script, /nextKeyboardTaskIndex\(rows\.length, currentIndex, direction\)/);
+  assert.match(script, /function toggleFocusedTaskSelection\(\)/);
+  assert.match(script, /toggleTaskSelected\(uid\)/);
+  assert.match(script, /focusTaskRow\(uid\)/);
+  assert.match(script, /function renderKeyboardShortcutHint\(prefix\)/);
+  assert.match(script, /function scheduleKeyboardShortcutHintFade\(\)/);
+  assert.match(script, /function hideKeyboardShortcutHint\(\)/);
+  assert.match(script, /function clearKeyboardShortcutHintTimers\(\)/);
+  assert.match(script, /els\.shortcutHint\.replaceChildren\(label, options\)/);
+  assert.match(script, /els\.shortcutHint\.classList\.add\("fading"\)/);
+  assert.match(script, /hideKeyboardShortcutHint\(\);\n    if \(shortcut\.action === "view"\)/);
+  assert.match(script, /void changeView\(shortcut\.bucket\)/);
+  assert.match(script, /function moveKeyboardTriageTasks\(bucket\)/);
+  assert.match(script, /if \(bucket === "scheduled"\) return startKeyboardScheduleTriage\(taskIds\)/);
+  assert.match(script, /function startKeyboardScheduleTriage\(taskIds\)/);
+  assert.match(script, /els\.bulkDateInput\.focus\(\)/);
+  assert.match(script, /function applyKeyboardScheduleDate\(\)/);
+  assert.match(script, /dueDate: els\.bulkDateInput\.value/);
+  assert.match(script, /taskIdsForKeyboardTriage\(\{/);
+  assert.match(script, /function focusedTaskId\(\)/);
+  assert.match(script, /node\.dataset\.taskUid = task\.uid/);
+  assert.match(styles, /\.shortcut-hint\.fading/);
+  assert.match(styles, /flex-wrap: nowrap/);
+  assert.match(styles, /width: max-content/);
+  assert.match(styles, /font-size: 16px/);
+  assert.match(styles, /min-width: 32px/);
+  assert.match(styles, /opacity 700ms ease/);
+});
+
 test("renderer separates project and GTD bucket metadata by view", async () => {
   const script = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
 

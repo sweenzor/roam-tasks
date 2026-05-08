@@ -13,6 +13,16 @@ import {
   sortTasks,
   updateLocalTaskState
 } from "./gtd-model.js";
+import {
+  gtdTriageBucketKeys,
+  gtdTriageShortcutPrefixes,
+  isKeyboardShortcutEditableTarget,
+  nextKeyboardTaskIndex,
+  resolveGtdTriageShortcut,
+  shortcutKey,
+  taskIdsForKeyboardTriage,
+  triageChangesForBucket
+} from "./keyboard-triage.js";
 import { createLocalStoreSaveQueue } from "./local-store-save-queue.js";
 import { timestampIso } from "./task-view-model.js";
 
@@ -50,6 +60,15 @@ const state = {
   visibleTaskIds: new Set()
 };
 
+let keyboardShortcutPrefix = "";
+let keyboardShortcutPrefixTimer = null;
+let keyboardShortcutHintTimer = null;
+let keyboardShortcutHintFadeTimer = null;
+let keyboardScheduleTaskIds = [];
+const keyboardShortcutPrefixTimeoutMs = 1200;
+const keyboardShortcutHintVisibleMs = 6000;
+const keyboardShortcutHintFadeMs = 700;
+
 const els = {
   setupPanel: document.querySelector("#setupPanel"),
   addForm: document.querySelector("#addForm"),
@@ -77,6 +96,7 @@ const els = {
   refreshButton: document.querySelector("#refreshButton"),
   taskList: document.querySelector("#taskList"),
   taskTemplate: document.querySelector("#taskTemplate"),
+  shortcutHint: document.querySelector("#shortcutHint"),
   viewTitle: document.querySelector("#viewTitle"),
   counts: {
     inbox: document.querySelector("#countInbox"),
@@ -104,15 +124,7 @@ async function boot() {
 function bindEvents() {
   document.querySelectorAll(".view-button").forEach((button) => {
     button.addEventListener("click", async () => {
-      const nextView = button.dataset.view;
-      if (nextView !== state.view) commitPendingRemovalsForView(state.view);
-      state.view = nextView;
-      localStorage.setItem(storageKeys.view, state.view);
-      if (shouldLoadDoneTasks() && !state.includeDoneLoaded) {
-        await refreshTasks();
-        return;
-      }
-      render();
+      await changeView(button.dataset.view);
     });
   });
 
@@ -168,9 +180,17 @@ function bindEvents() {
 
   els.bulkApplyButton.addEventListener("click", applyBulkChanges);
   els.bulkClearButton.addEventListener("click", () => {
+    clearKeyboardScheduleTriage();
     clearSelection();
     render();
   });
+  for (const control of bulkControls()) {
+    control.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      applyBulkChanges();
+    });
+  }
 
   els.taskInput.value = localStorage.getItem(storageKeys.taskDraft) || "";
   els.taskInput.addEventListener("input", () => {
@@ -206,12 +226,269 @@ function bindEvents() {
     render();
   });
 
-  window.addEventListener("keydown", (event) => {
-    if (event.key === "/" && document.activeElement === document.body) {
+  window.addEventListener("keydown", handleGlobalKeydown);
+}
+
+function handleGlobalKeydown(event) {
+  if (handleGtdTriageShortcut(event)) return;
+  if (handleTaskListKeyboardShortcut(event)) return;
+
+  if (event.key === "/" && document.activeElement === document.body) {
+    event.preventDefault();
+    els.searchInput.focus();
+  }
+}
+
+function handleGtdTriageShortcut(event) {
+  if (isKeyboardShortcutEditableTarget(event.target)) return false;
+
+  const key = shortcutKey(event);
+  if (key === "escape" && !els.shortcutHint.classList.contains("hidden")) {
+    event.preventDefault();
+    clearKeyboardShortcutPrefix();
+    hideKeyboardShortcutHint();
+    return true;
+  }
+  if (!key) {
+    clearKeyboardShortcutPrefix();
+    return false;
+  }
+
+  if (keyboardShortcutPrefix) {
+    const prefix = keyboardShortcutPrefix;
+    clearKeyboardShortcutPrefix();
+    const shortcut = resolveGtdTriageShortcut(prefix, key);
+    if (!shortcut) {
+      if (gtdTriageShortcutPrefixes[key]) {
+        event.preventDefault();
+        startKeyboardShortcutPrefix(key);
+        return true;
+      }
       event.preventDefault();
-      els.searchInput.focus();
+      return true;
     }
+
+    event.preventDefault();
+    hideKeyboardShortcutHint();
+    if (shortcut.action === "view") {
+      void changeView(shortcut.bucket);
+      return true;
+    }
+    moveKeyboardTriageTasks(shortcut.bucket);
+    return true;
+  }
+
+  if (!gtdTriageShortcutPrefixes[key]) return false;
+
+  event.preventDefault();
+  startKeyboardShortcutPrefix(key);
+  return true;
+}
+
+function handleTaskListKeyboardShortcut(event) {
+  if (isKeyboardShortcutEditableTarget(event.target)) return false;
+
+  const key = shortcutKey(event);
+  if (key === "j" || key === "k") {
+    event.preventDefault();
+    return focusTaskByKeyboard(key === "j" ? 1 : -1);
+  }
+  if (key !== "x") return false;
+
+  const selected = toggleFocusedTaskSelection();
+  if (selected) event.preventDefault();
+  return selected;
+}
+
+function focusTaskByKeyboard(direction) {
+  const rows = keyboardTaskRows();
+  if (!rows.length) return false;
+
+  const activeRow = document.activeElement?.closest?.(".task-row");
+  const currentIndex = rows.indexOf(activeRow);
+  const nextIndex = nextKeyboardTaskIndex(rows.length, currentIndex, direction);
+  const nextRow = rows[nextIndex];
+  if (!nextRow) return false;
+
+  nextRow.focus();
+  return true;
+}
+
+function toggleFocusedTaskSelection() {
+  const row = document.activeElement?.closest?.(".task-row");
+  const uid = row?.dataset.taskUid || "";
+  if (!uid || isPendingRemoval(uid) || !state.visibleTaskIds.has(uid)) return false;
+
+  clearKeyboardScheduleTriage();
+  toggleTaskSelected(uid);
+  render();
+  focusTaskRow(uid);
+  return true;
+}
+
+function focusTaskRow(uid) {
+  const row = keyboardTaskRows({ includePending: true }).find((candidate) => candidate.dataset.taskUid === uid);
+  row?.focus();
+}
+
+function keyboardTaskRows({ includePending = false } = {}) {
+  const rows = [...els.taskList.querySelectorAll(".task-row")];
+  if (includePending) return rows;
+  return rows.filter((row) => !row.classList.contains("pending-removal"));
+}
+
+function startKeyboardShortcutPrefix(prefix) {
+  clearKeyboardShortcutPrefix();
+  keyboardShortcutPrefix = prefix;
+  keyboardShortcutPrefixTimer = window.setTimeout(clearKeyboardShortcutPrefix, keyboardShortcutPrefixTimeoutMs);
+  renderKeyboardShortcutHint(prefix);
+}
+
+function clearKeyboardShortcutPrefix() {
+  keyboardShortcutPrefix = "";
+  if (keyboardShortcutPrefixTimer) {
+    window.clearTimeout(keyboardShortcutPrefixTimer);
+    keyboardShortcutPrefixTimer = null;
+  }
+}
+
+function renderKeyboardShortcutHint(prefix) {
+  const action = gtdTriageShortcutPrefixes[prefix];
+  if (!action) {
+    hideKeyboardShortcutHint();
+    return;
+  }
+
+  clearKeyboardShortcutHintTimers();
+
+  const label = document.createElement("span");
+  label.className = "shortcut-hint-label";
+  label.textContent = action === "view" ? "Go to" : "Move to";
+
+  const options = document.createElement("span");
+  options.className = "shortcut-hint-options";
+  for (const [key, bucket] of Object.entries(gtdTriageBucketKeys)) {
+    const item = document.createElement("span");
+    item.className = "shortcut-hint-option";
+    const keyNode = document.createElement("kbd");
+    keyNode.textContent = key.toUpperCase();
+    const text = document.createElement("span");
+    text.textContent = gtdStatusLabels[bucket] || bucket;
+    item.append(keyNode, text);
+    options.append(item);
+  }
+
+  els.shortcutHint.replaceChildren(label, options);
+  els.shortcutHint.classList.remove("hidden", "fading");
+  scheduleKeyboardShortcutHintFade();
+}
+
+function scheduleKeyboardShortcutHintFade() {
+  keyboardShortcutHintTimer = window.setTimeout(() => {
+    keyboardShortcutHintTimer = null;
+    els.shortcutHint.classList.add("fading");
+    keyboardShortcutHintFadeTimer = window.setTimeout(hideKeyboardShortcutHint, keyboardShortcutHintFadeMs);
+  }, keyboardShortcutHintVisibleMs);
+}
+
+function hideKeyboardShortcutHint() {
+  clearKeyboardShortcutHintTimers();
+  els.shortcutHint.classList.add("hidden");
+  els.shortcutHint.classList.remove("fading");
+  els.shortcutHint.replaceChildren();
+}
+
+function clearKeyboardShortcutHintTimers() {
+  if (keyboardShortcutHintTimer) {
+    window.clearTimeout(keyboardShortcutHintTimer);
+    keyboardShortcutHintTimer = null;
+  }
+  if (keyboardShortcutHintFadeTimer) {
+    window.clearTimeout(keyboardShortcutHintFadeTimer);
+    keyboardShortcutHintFadeTimer = null;
+  }
+}
+
+async function changeView(nextView) {
+  if (!gtdViewIds.includes(nextView)) return;
+  if (nextView !== state.view) commitPendingRemovalsForView(state.view);
+  state.view = nextView;
+  localStorage.setItem(storageKeys.view, state.view);
+  if (shouldLoadDoneTasks() && !state.includeDoneLoaded) {
+    await refreshTasks();
+    return;
+  }
+  render();
+}
+
+function moveKeyboardTriageTasks(bucket) {
+  const taskIds = taskIdsForKeyboardTriage({
+    selectedTaskIds: state.selectedTaskIds,
+    focusedTaskId: focusedTaskId(),
+    visibleTaskIds: state.visibleTaskIds,
+    pendingRemovalIds: state.pendingRemovals.keys()
   });
+  if (!taskIds.length) return false;
+  if (bucket === "scheduled") return startKeyboardScheduleTriage(taskIds);
+
+  const changes = triageChangesForBucket(bucket);
+
+  if (!Object.keys(changes).length) return false;
+
+  clearKeyboardScheduleTriage();
+  for (const uid of taskIds) {
+    const task = state.tasks.find((candidate) => candidate.uid === uid);
+    if (task) updateLocalTask(task, changes);
+  }
+
+  clearSelection();
+  render();
+  return true;
+}
+
+function startKeyboardScheduleTriage(taskIds) {
+  clearSelection();
+  for (const uid of taskIds) setTaskSelected(uid, true);
+  keyboardScheduleTaskIds = [...taskIds];
+  render();
+  els.bulkStatusInput.value = "scheduled";
+  els.bulkDateInput.value = "";
+  els.bulkDateInput.focus();
+  return true;
+}
+
+function applyKeyboardScheduleDate() {
+  const changes = triageChangesForBucket("scheduled", { dueDate: els.bulkDateInput.value });
+  if (!Object.keys(changes).length) {
+    els.bulkDateInput.focus();
+    return false;
+  }
+
+  const taskIds = taskIdsForKeyboardTriage({
+    selectedTaskIds: new Set(keyboardScheduleTaskIds),
+    visibleTaskIds: state.visibleTaskIds,
+    pendingRemovalIds: state.pendingRemovals.keys()
+  });
+  if (!taskIds.length) return false;
+
+  for (const uid of taskIds) {
+    const task = state.tasks.find((candidate) => candidate.uid === uid);
+    if (task) updateLocalTask(task, changes);
+  }
+
+  clearKeyboardScheduleTriage();
+  clearSelection();
+  resetBulkInputs();
+  render();
+  return true;
+}
+
+function clearKeyboardScheduleTriage() {
+  keyboardScheduleTaskIds = [];
+}
+
+function focusedTaskId() {
+  return document.activeElement?.closest?.(".task-row")?.dataset.taskUid || "";
 }
 
 async function loadGraphs() {
@@ -379,6 +656,7 @@ function renderTaskList(tasks) {
 function renderTask(task) {
   const pendingRemoval = isPendingRemoval(task.uid);
   const node = els.taskTemplate.content.firstElementChild.cloneNode(true);
+  node.dataset.taskUid = task.uid;
   node.classList.toggle("done", task.done);
   node.classList.toggle("completed", task.status === "done");
   node.classList.toggle("abandoned", task.status === "abandoned");
@@ -564,6 +842,15 @@ function selectedTasks() {
 }
 
 function applyBulkChanges() {
+  if (keyboardScheduleTaskIds.length && els.bulkStatusInput.value === "scheduled") {
+    applyKeyboardScheduleDate();
+    return;
+  }
+  if (els.bulkStatusInput.value === "scheduled" && !els.bulkDateInput.value) {
+    els.bulkDateInput.focus();
+    return;
+  }
+
   const tasks = selectedTasks();
   const changes = bulkChanges();
   if (!tasks.length || !Object.keys(changes).length) return;
@@ -571,6 +858,7 @@ function applyBulkChanges() {
   for (const task of tasks) {
     updateLocalTask(task, changes);
   }
+  clearKeyboardScheduleTriage();
   clearSelection();
   resetBulkInputs();
   render();
