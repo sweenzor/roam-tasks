@@ -154,6 +154,61 @@ test("local GTD state recovers corrupted JSON with inspectable diagnostics", asy
   }
 });
 
+test("local GTD state reports structurally invalid fragments without losing valid data", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "roam-tasks-api-store-"));
+  try {
+    const path = join(dir, "gtd-state.json");
+    await writeFile(
+      path,
+      JSON.stringify({
+        localTasks: [{ uid: "local-1", text: "Keep local task" }],
+        localState: {
+          "roam-1": { gtdStatus: "next", project: "Launch" },
+          "roam-2": "bad overlay"
+        }
+      }),
+      "utf8"
+    );
+    const handler = appHandler({
+      localStore: createJsonLocalStore(path)
+    });
+
+    const response = await invoke(handler, {
+      method: "GET",
+      url: "/api/local-state"
+    });
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.json.localTasks, [{ uid: "local-1", text: "Keep local task" }]);
+    assert.deepEqual(response.json.localState, {
+      "roam-1": { gtdStatus: "next", project: "Launch" }
+    });
+    assert.equal(response.json.version, 1);
+    assert.equal(response.json.storePath, path);
+    assert.equal(response.json.recovery.errorName, "LocalStoreStructureError");
+    assert.match(response.json.recovery.error, /structurally invalid/);
+    assert.match(response.json.recovery.error, /localState\["roam-2"\]/);
+
+    const preserved = JSON.parse(await readFile(response.json.recovery.preservedPath, "utf8"));
+    assert.deepEqual(preserved.invalidFragments, [
+      {
+        path: 'localState["roam-2"]',
+        reason: "Expected localState overlay entries to be objects.",
+        value: "bad overlay"
+      }
+    ]);
+    assert.deepEqual(JSON.parse(await readFile(path, "utf8")), {
+      version: 1,
+      localTasks: [{ uid: "local-1", text: "Keep local task" }],
+      localState: {
+        "roam-1": { gtdStatus: "next", project: "Launch" }
+      }
+    });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("patch reads the current Roam block before updating", async () => {
   const actions = [];
   let updatedString = "";
