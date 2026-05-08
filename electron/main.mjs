@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { app, BrowserWindow, Menu, dialog, shell, screen } from "electron";
 import { startServer } from "../server/index.mjs";
+import { migrateLegacyProfile } from "./profile-migration.mjs";
 import { installReloadFlush, installShutdownFlush, installWindowCloseFlush } from "./shutdown.mjs";
 import { defaultWindowBounds, loadWindowState, minimumWindowSize, watchWindowState } from "./window-state.mjs";
 
@@ -165,6 +166,7 @@ function escapeHtml(value) {
 
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
+  await migrateLegacyProfileBeforeStart();
   await createWindow();
 
   app.on("activate", async () => {
@@ -184,3 +186,11 @@ installShutdownFlush({
   getWindow: () => mainWindow,
   getServerInfo: () => serverInfo
 });
+
+async function migrateLegacyProfileBeforeStart() {
+  try {
+    await migrateLegacyProfile({ currentUserDataPath: app.getPath("userData") });
+  } catch (error) {
+    console.warn(`Could not migrate legacy Roam Tasks profile: ${error.message || String(error)}`);
+  }
+}
