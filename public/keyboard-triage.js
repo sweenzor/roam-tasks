@@ -2,12 +2,24 @@ export const gtdTriageBucketKeys = {
   i: "inbox",
   n: "next",
   w: "waiting",
-  s: "scheduled"
+  s: "scheduled",
+  y: "someday"
+};
+
+export const gtdTriageViewKeys = {
+  ...gtdTriageBucketKeys,
+  p: "projects",
+  r: "review"
 };
 
 export const gtdTriageShortcutPrefixes = {
   g: "view",
   m: "move"
+};
+
+export const keyboardSelectionShortcutKeys = {
+  a: "select-visible",
+  escape: "clear"
 };
 
 export function shortcutKey(event = {}) {
@@ -24,9 +36,14 @@ export function isKeyboardShortcutEditableTarget(target) {
 
 export function resolveGtdTriageShortcut(prefix, key) {
   const action = gtdTriageShortcutPrefixes[String(prefix || "").toLowerCase()];
-  const bucket = gtdTriageBucketKeys[String(key || "").toLowerCase()];
-  if (!action || !bucket) return null;
-  return { action, bucket };
+  if (!action) return null;
+  const keyMap = action === "view" ? gtdTriageViewKeys : gtdTriageBucketKeys;
+  const bucket = keyMap[String(key || "").toLowerCase()];
+  return bucket ? { action, bucket } : null;
+}
+
+export function resolveKeyboardSelectionShortcut(key) {
+  return keyboardSelectionShortcutKeys[String(key || "").toLowerCase()] || "";
 }
 
 export function triageChangesForBucket(bucket, options = {}) {
@@ -56,6 +73,13 @@ export function triageChangesForBucket(bucket, options = {}) {
     return {
       gtdStatus: "scheduled",
       dueDate,
+      waitingFor: ""
+    };
+  }
+  if (bucket === "someday") {
+    return {
+      gtdStatus: "someday",
+      dueDate: null,
       waitingFor: ""
     };
   }
