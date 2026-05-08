@@ -88,6 +88,35 @@ test("renderer supports local bulk categorization", async () => {
   assert.match(script, /function bulkChanges\(\)/);
 });
 
+test("renderer supports dragging selected tasks into GTD buckets", async () => {
+  const script = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
+  const css = await readFile(new URL("../public/styles.css", import.meta.url), "utf8");
+
+  assert.match(script, /dragTaskIds: \[\]/);
+  assert.match(script, /dragBadge: null/);
+  assert.match(script, /taskDragPointer: null/);
+  assert.match(script, /application\/x-roam-task-ids/);
+  assert.match(script, /node\.draggable = !pendingRemoval/);
+  assert.match(script, /document\.addEventListener\("pointermove", moveTaskPointer\)/);
+  assert.match(script, /function bindViewDropTarget\(button\)/);
+  assert.match(script, /function dropStatusAt\(x, y\)/);
+  assert.match(script, /function moveTasksToStatus\(taskIds, status\)/);
+  assert.match(script, /updateLocalTask\(task, \{ gtdStatus: status \}\)/);
+  assert.match(script, /function ensureTaskDragBadge\(count\)/);
+  assert.match(script, /function updateTaskDragBadge\(x, y\)/);
+  assert.match(script, /dataTransfer\.setDragImage\(badge, 26, 18\)/);
+  assert.match(script, /return \["inbox", "next", "waiting", "someday"\]\.includes\(status\)/);
+  assert.match(script, /return status === "scheduled"/);
+  assert.match(script, /if \(isDropStatus\(status\)\) moveTasksToStatus\(taskIds, status\)/);
+  assert.match(css, /body\.task-drag-active \.view-button\[data-view="next"\]/);
+  assert.match(css, /body\.task-drag-active \.view-button\[data-view="scheduled"\]/);
+  assert.match(css, /\.view-button\.drop-target/);
+  assert.match(css, /\.view-button\.drop-denied/);
+  assert.match(css, /\.task-row\.dragging/);
+  assert.match(css, /\.task-drag-badge/);
+  assert.match(css, /\.task-drag-box-icon/);
+});
+
 test("renderer separates project and GTD bucket metadata by view", async () => {
   const script = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
 
