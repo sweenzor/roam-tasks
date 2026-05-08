@@ -73,9 +73,12 @@ test("renderer persists lightweight UI state across relaunches", async () => {
 test("GTD view defaults to inbox capture", async () => {
   const storage = await readFile(new URL("../public/ui-storage.js", import.meta.url), "utf8");
   const model = await readFile(new URL("../public/gtd-model.js", import.meta.url), "utf8");
+  const script = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
 
   assert.match(model, /export const gtdViewIds = \["inbox", "next", "waiting", "scheduled", "someday", "projects", "review"\]/);
   assert.match(storage, /return gtdViewIds\.includes\(view\) \? view : "inbox"/);
+  assert.match(script, /import \{[\s\S]*gtdViewIds[\s\S]*\} from "\.\/gtd-model\.js"/);
+  assert.match(script, /if \(!gtdViewIds\.includes\(nextView\)\) return/);
 });
 
 test("renderer supports local bulk categorization", async () => {

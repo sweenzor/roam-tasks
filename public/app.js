@@ -4,6 +4,7 @@ import {
   effectiveTasks as deriveEffectiveTasks,
   filterGtdTasks,
   getGtdCounts,
+  gtdViewIds,
   gtdStatusLabels,
   isDailyNoteTitle,
   isRoamDateTitle,
