@@ -36,7 +36,11 @@ const state = {
   localStoreInfo: { storePath: "", recovery: null },
   pendingRemovals: new Map(),
   selectedTaskIds: new Set(),
-  visibleTaskIds: new Set()
+  visibleTaskIds: new Set(),
+  dragTaskIds: [],
+  dragBadge: null,
+  taskDragPointer: null,
+  suppressNextTaskClick: false
 };
 
 const els = {
@@ -78,6 +82,8 @@ const els = {
   }
 };
 
+const taskDragMimeType = "application/x-roam-task-ids";
+
 state.tasks = effectiveTasks();
 
 boot();
@@ -103,6 +109,7 @@ function bindEvents() {
       }
       render();
     });
+    bindViewDropTarget(button);
   });
 
   els.sortSelect.value = state.sort;
@@ -201,6 +208,10 @@ function bindEvents() {
       els.searchInput.focus();
     }
   });
+
+  document.addEventListener("pointermove", moveTaskPointer);
+  document.addEventListener("pointerup", endTaskPointer);
+  document.addEventListener("pointercancel", cancelTaskPointer);
 }
 
 async function loadGraphs() {
@@ -368,6 +379,8 @@ function renderTaskList(tasks) {
 function renderTask(task) {
   const pendingRemoval = isPendingRemoval(task.uid);
   const node = els.taskTemplate.content.firstElementChild.cloneNode(true);
+  node.dataset.taskUid = task.uid;
+  node.draggable = !pendingRemoval;
   node.classList.toggle("done", task.done);
   node.classList.toggle("completed", task.status === "done");
   node.classList.toggle("abandoned", task.status === "abandoned");
@@ -377,9 +390,26 @@ function renderTask(task) {
   node.title = pendingRemoval
     ? "Pending removal"
     : state.selectedTaskIds.has(task.uid)
-      ? "Click to deselect task"
-      : "Click to select task";
+      ? "Drag selected tasks to a bucket or click to deselect task"
+      : "Drag to a bucket or click to select task";
+  node.addEventListener("dragstart", (event) => {
+    if (pendingRemoval) {
+      event.preventDefault();
+      return;
+    }
+    beginTaskDrag(event, task);
+  });
+  node.addEventListener("dragend", endTaskDrag);
+  node.addEventListener("pointerdown", (event) => {
+    if (pendingRemoval) return;
+    beginTaskPointer(event, task);
+  });
   node.addEventListener("click", (event) => {
+    if (state.suppressNextTaskClick) {
+      state.suppressNextTaskClick = false;
+      event.preventDefault();
+      return;
+    }
     if (pendingRemoval) return;
     if (isTaskActionTarget(event.target)) return;
     toggleTaskSelected(task.uid);
@@ -520,6 +550,288 @@ function setTaskSelected(uid, selected) {
 
 function toggleTaskSelected(uid) {
   setTaskSelected(uid, !state.selectedTaskIds.has(uid));
+}
+
+function bindViewDropTarget(button) {
+  const status = button.dataset.view;
+  if (!isDropStatus(status) && !isBlockedDropStatus(status)) return;
+
+  button.addEventListener("dragenter", (event) => {
+    if (!hasDraggedTasks(event)) return;
+    event.preventDefault();
+    markDropButton(button, status, event);
+  });
+
+  button.addEventListener("dragover", (event) => {
+    if (!hasDraggedTasks(event)) return;
+    event.preventDefault();
+    markDropButton(button, status, event);
+  });
+
+  button.addEventListener("dragleave", (event) => {
+    if (event.relatedTarget && button.contains(event.relatedTarget)) return;
+    button.classList.remove("drop-target", "drop-denied");
+  });
+
+  button.addEventListener("drop", (event) => {
+    if (!hasDraggedTasks(event)) return;
+    event.preventDefault();
+
+    const taskIds = draggedTaskIdsFromEvent(event);
+    endTaskDrag();
+    if (isDropStatus(status)) moveTasksToStatus(taskIds, status);
+  });
+}
+
+function markDropButton(button, status, event) {
+  const accepted = isDropStatus(status);
+  if (event.dataTransfer) event.dataTransfer.dropEffect = accepted ? "move" : "none";
+  button.classList.toggle("drop-target", accepted);
+  button.classList.toggle("drop-denied", !accepted);
+}
+
+function beginTaskDrag(event, task) {
+  if (isTaskActionTarget(event.target)) {
+    event.preventDefault();
+    return;
+  }
+
+  const taskIds = taskIdsForDrag(task);
+  if (!taskIds.length) {
+    event.preventDefault();
+    return;
+  }
+
+  state.dragTaskIds = taskIds;
+  startTaskDragVisuals(taskIds);
+
+  if (!event.dataTransfer) return;
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData(taskDragMimeType, JSON.stringify(taskIds));
+  event.dataTransfer.setData("text/plain", taskIds.join(","));
+  setNativeTaskDragImage(event.dataTransfer, taskIds);
+}
+
+function beginTaskPointer(event, task) {
+  if (event.button !== 0 || isTaskActionTarget(event.target)) return;
+
+  state.taskDragPointer = {
+    pointerId: event.pointerId,
+    task,
+    taskIds: [],
+    dragging: false,
+    sourceNode: event.currentTarget,
+    startX: event.clientX,
+    startY: event.clientY
+  };
+  event.currentTarget.setPointerCapture?.(event.pointerId);
+}
+
+function moveTaskPointer(event) {
+  const drag = state.taskDragPointer;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+
+  const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+  if (!drag.dragging && distance < 8) return;
+
+  if (!drag.dragging) {
+    drag.taskIds = taskIdsForDrag(drag.task);
+    if (!drag.taskIds.length) {
+      state.taskDragPointer = null;
+      return;
+    }
+    drag.dragging = true;
+    state.dragTaskIds = drag.taskIds;
+    startTaskDragVisuals(drag.taskIds, { x: event.clientX, y: event.clientY });
+  }
+
+  event.preventDefault();
+  updateTaskDragBadge(event.clientX, event.clientY);
+  highlightDropTargetAt(event.clientX, event.clientY);
+}
+
+function endTaskPointer(event) {
+  const drag = state.taskDragPointer;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+
+  state.taskDragPointer = null;
+  drag.sourceNode?.releasePointerCapture?.(event.pointerId);
+
+  if (!drag.dragging) return;
+
+  event.preventDefault();
+  suppressNextTaskClick();
+
+  const status = dropStatusAt(event.clientX, event.clientY);
+  endTaskDrag();
+  if (status) moveTasksToStatus(drag.taskIds, status);
+}
+
+function cancelTaskPointer(event) {
+  const drag = state.taskDragPointer;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+
+  state.taskDragPointer = null;
+  drag.sourceNode?.releasePointerCapture?.(event.pointerId);
+  if (drag.dragging) endTaskDrag();
+}
+
+function endTaskDrag() {
+  state.dragTaskIds = [];
+  document.body.classList.remove("task-drag-active");
+  removeTaskDragBadge();
+  clearDropTargets();
+  markDraggingTasks([], false);
+}
+
+function taskIdsForDrag(task) {
+  if (!state.selectedTaskIds.has(task.uid)) return [task.uid];
+
+  return [...state.selectedTaskIds].filter((uid) => state.visibleTaskIds.has(uid) && !isPendingRemoval(uid));
+}
+
+function isDropStatus(status) {
+  return ["inbox", "next", "waiting", "someday"].includes(status);
+}
+
+function isBlockedDropStatus(status) {
+  return status === "scheduled";
+}
+
+function hasDraggedTasks(event) {
+  if (state.dragTaskIds.length) return true;
+
+  const types = event.dataTransfer?.types;
+  return Boolean(types && Array.from(types).includes(taskDragMimeType));
+}
+
+function draggedTaskIdsFromEvent(event) {
+  if (state.dragTaskIds.length) return [...state.dragTaskIds];
+
+  const raw = event.dataTransfer?.getData(taskDragMimeType);
+  if (!raw) return [];
+
+  try {
+    const taskIds = JSON.parse(raw);
+    return Array.isArray(taskIds) ? taskIds.filter((uid) => typeof uid === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function moveTasksToStatus(taskIds, status) {
+  if (!isDropStatus(status)) return;
+
+  const idSet = new Set(taskIds);
+  const tasks = state.tasks.filter((task) => idSet.has(task.uid) && !isPendingRemoval(task.uid));
+  if (!tasks.length) return;
+
+  for (const task of tasks) {
+    updateLocalTask(task, { gtdStatus: status });
+  }
+  clearSelection();
+  resetBulkInputs();
+  render();
+}
+
+function startTaskDragVisuals(taskIds, point = null) {
+  document.body.classList.add("task-drag-active");
+  markDraggingTasks(taskIds, true);
+
+  if (taskIds.length < 2) {
+    removeTaskDragBadge();
+    return;
+  }
+
+  ensureTaskDragBadge(taskIds.length);
+  if (point) {
+    updateTaskDragBadge(point.x, point.y);
+  } else {
+    state.dragBadge.classList.add("native-only");
+  }
+}
+
+function setNativeTaskDragImage(dataTransfer, taskIds) {
+  if (taskIds.length < 2 || typeof dataTransfer.setDragImage !== "function") return;
+
+  const badge = ensureTaskDragBadge(taskIds.length);
+  badge.classList.add("native-only");
+  dataTransfer.setDragImage(badge, 26, 18);
+}
+
+function ensureTaskDragBadge(count) {
+  if (!state.dragBadge) {
+    const badge = document.createElement("div");
+    badge.className = "task-drag-badge";
+    badge.setAttribute("aria-hidden", "true");
+
+    const icon = document.createElement("span");
+    icon.className = "task-drag-box-icon";
+
+    const value = document.createElement("strong");
+    value.className = "task-drag-count";
+
+    badge.append(icon, value);
+    document.body.append(badge);
+    state.dragBadge = badge;
+  }
+
+  state.dragBadge.querySelector(".task-drag-count").textContent = String(count);
+  return state.dragBadge;
+}
+
+function updateTaskDragBadge(x, y) {
+  if (!state.dragBadge) return;
+
+  state.dragBadge.classList.remove("native-only");
+  state.dragBadge.style.left = `${x + 14}px`;
+  state.dragBadge.style.top = `${y + 14}px`;
+}
+
+function removeTaskDragBadge() {
+  state.dragBadge?.remove();
+  state.dragBadge = null;
+}
+
+function highlightDropTargetAt(x, y) {
+  clearDropTargets();
+  const button = dropButtonAt(x, y);
+  if (!button) return;
+
+  const accepted = isDropStatus(button.dataset.view);
+  button.classList.toggle("drop-target", accepted);
+  button.classList.toggle("drop-denied", !accepted);
+}
+
+function dropStatusAt(x, y) {
+  const status = dropButtonAt(x, y)?.dataset.view || "";
+  return isDropStatus(status) ? status : "";
+}
+
+function dropButtonAt(x, y) {
+  const target = document.elementFromPoint(x, y);
+  const button = target?.closest?.(".view-button");
+  return button && (isDropStatus(button.dataset.view) || isBlockedDropStatus(button.dataset.view)) ? button : null;
+}
+
+function markDraggingTasks(taskIds, dragging) {
+  const idSet = new Set(taskIds);
+  document.querySelectorAll(".task-row[data-task-uid]").forEach((row) => {
+    row.classList.toggle("dragging", dragging && idSet.has(row.dataset.taskUid));
+  });
+}
+
+function clearDropTargets() {
+  document.querySelectorAll(".view-button.drop-target, .view-button.drop-denied").forEach((button) => {
+    button.classList.remove("drop-target", "drop-denied");
+  });
+}
+
+function suppressNextTaskClick() {
+  state.suppressNextTaskClick = true;
+  window.setTimeout(() => {
+    state.suppressNextTaskClick = false;
+  });
 }
 
 function toggleVisibleSelection(selected) {
