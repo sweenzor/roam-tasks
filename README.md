@@ -142,7 +142,7 @@ Roam tasks are blocks containing Roam's TODO marker:
 {{[[TODO]]}} Send invoice [[May 1st, 2026]] #admin
 ```
 
-The app reads `{{[[TODO]]}}`, `{{[[DONE]]}}`, and `{{[[Abandoned]]}}` blocks, parses common Roam date links, and layers GTD organization state on top locally. Captured sandbox tasks, task category changes, local completion state, and local removals are stored in the local GTD JSON file rather than written back to Roam.
+The app reads `{{[[TODO]]}}`, `{{[[DONE]]}}`, and `{{[[Abandoned]]}}` blocks, parses common Roam date links, and layers GTD organization state on top locally. Captured sandbox tasks, task category changes, local completion state, and local removals are stored in the local GTD JSON file rather than written back to Roam. The local server reads task data from Roam and opens Roam targets on request; GTD edits use the local store as their source of truth.
 
 ## Local API Notes
 

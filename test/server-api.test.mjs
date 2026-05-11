@@ -209,41 +209,38 @@ test("local GTD state reports structurally invalid fragments without losing vali
   }
 });
 
-test("patch reads the current Roam block before updating", async () => {
-  const actions = [];
-  let updatedString = "";
+test("Roam task data mutations are not exposed by the local-first API", async () => {
+  let calls = 0;
   const handler = appHandler({
-    roamCall: async (_graph, action, args) => {
-      actions.push(action);
-      if (action === "q") {
-        return {
-          success: true,
-          result: [["{{[[TODO]]}} Current copy [[New Page]]"]]
-        };
-      }
-      if (action === "data.block.update") {
-        updatedString = args[0].block.string;
-        return { success: true, result: {} };
-      }
+    roamCall: async () => {
+      calls += 1;
       return { success: true, result: {} };
     }
   });
 
-  const response = await invoke(handler, {
+  const createResponse = await invoke(handler, {
+    method: "POST",
+    url: "/api/tasks",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ graph: "demo", text: "Write back to Roam" })
+  });
+  const updateResponse = await invoke(handler, {
     method: "PATCH",
     url: "/api/tasks/abc123",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      graph: "demo",
-      raw: "{{[[TODO]]}} Stale copy",
-      done: true,
-      pageTitle: "Projects"
-    })
+    body: JSON.stringify({ graph: "demo", done: true })
+  });
+  const deleteResponse = await invoke(handler, {
+    method: "DELETE",
+    url: "/api/tasks/abc123",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ graph: "demo" })
   });
 
-  assert.equal(response.status, 200);
-  assert.deepEqual(actions, ["q", "data.block.update"]);
-  assert.equal(updatedString, "{{[[DONE]]}} Current copy [[New Page]]");
+  assert.equal(createResponse.status, 404);
+  assert.equal(updateResponse.status, 404);
+  assert.equal(deleteResponse.status, 404);
+  assert.equal(calls, 0);
 });
 
 test("tasks endpoint only fetches completed statuses when requested", async () => {

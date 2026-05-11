@@ -25,6 +25,7 @@ import {
   taskIdsForKeyboardTriage,
   triageChangesForBucket
 } from "./keyboard-triage.js";
+import { degradedLocalStoreInfo, localStoreNoticeView, normalizeGraphLoadResult } from "./app-view-model.js";
 import { createLocalStoreSaveQueue } from "./local-store-save-queue.js";
 import { timestampIso } from "./task-view-model.js";
 import { loadStoredUiState, storageKeys } from "./ui-storage.js";
@@ -46,7 +47,7 @@ const state = {
   showCompleted: storedUiState.showCompleted,
   includeDoneLoaded: false,
   loading: false,
-  localStoreInfo: { storePath: "", recovery: null },
+  localStoreInfo: { storePath: "", recovery: null, degraded: null },
   pendingRemovals: new Map(),
   selectedTaskIds: new Set(),
   visibleTaskIds: new Set(),
@@ -88,6 +89,7 @@ const els = {
   bulkApplyButton: document.querySelector("#bulkApplyButton"),
   bulkClearButton: document.querySelector("#bulkClearButton"),
   localStoreNotice: document.querySelector("#localStoreNotice"),
+  localStoreNoticeTitle: document.querySelector("#localStoreNoticeTitle"),
   localStoreNoticeBody: document.querySelector("#localStoreNoticeBody"),
   refreshButton: document.querySelector("#refreshButton"),
   taskList: document.querySelector("#taskList"),
@@ -536,13 +538,14 @@ async function loadGraphs() {
   setStatus("Loading", true);
   try {
     const data = await api("/api/graphs");
-    state.graphs = data.graphs || [];
-    state.graph = data.selectedGraph;
+    const graphLoad = normalizeGraphLoadResult(data);
+    state.graphs = graphLoad.graphs;
+    state.graph = graphLoad.selectedGraph;
 
-    els.setupPanel.classList.add("hidden");
+    els.setupPanel.classList.toggle("hidden", !graphLoad.showSetup);
     setStatus();
   } catch (error) {
-    els.setupPanel.classList.add("hidden");
+    els.setupPanel.classList.remove("hidden");
     setStatus(error.message, false, true);
   }
 }
@@ -1322,7 +1325,12 @@ async function loadLocalStore() {
     } else {
       clearLegacyLocalStore();
     }
-  } catch {
+  } catch (error) {
+    state.localStoreInfo = {
+      storePath: "",
+      recovery: null,
+      degraded: degradedLocalStoreInfo(error)
+    };
     state.localTasks = legacyStore.localTasks;
     state.localState = legacyStore.localState;
     state.tasks = effectiveTasks();
@@ -1348,9 +1356,24 @@ async function saveLocalStoreSnapshot(snapshot) {
       body: snapshot
     });
     clearLegacyLocalStore();
+    state.localStoreInfo = {
+      ...state.localStoreInfo,
+      degraded: null
+    };
+    renderLocalStoreNotice();
     return true;
-  } catch {
-    writeLegacyLocalStore(snapshot);
+  } catch (error) {
+    let fallbackError = "";
+    try {
+      writeLegacyLocalStore(snapshot);
+    } catch (storageError) {
+      fallbackError = storageError;
+    }
+    state.localStoreInfo = {
+      ...state.localStoreInfo,
+      degraded: degradedLocalStoreInfo(error, { fallbackError })
+    };
+    renderLocalStoreNotice();
     return false;
   }
 }
@@ -1372,7 +1395,8 @@ function normalizeLocalStore(data = {}) {
 function normalizeLocalStoreInfo(data = {}) {
   return {
     storePath: typeof data.storePath === "string" ? data.storePath : "",
-    recovery: normalizeLocalStoreRecovery(data.recovery)
+    recovery: normalizeLocalStoreRecovery(data.recovery),
+    degraded: normalizeLocalStoreDegraded(data.degraded)
   };
 }
 
@@ -1383,6 +1407,16 @@ function normalizeLocalStoreRecovery(recovery) {
     errorName: stringValue(recovery.errorName),
     preservedPath: stringValue(recovery.preservedPath),
     recoveredAt: stringValue(recovery.recoveredAt)
+  };
+}
+
+function normalizeLocalStoreDegraded(degraded) {
+  if (!degraded || typeof degraded !== "object" || Array.isArray(degraded)) return null;
+  return {
+    error: stringValue(degraded.error),
+    fallback: stringValue(degraded.fallback),
+    fallbackError: stringValue(degraded.fallbackError),
+    degradedAt: stringValue(degraded.degradedAt)
   };
 }
 
@@ -1687,15 +1721,14 @@ function renderEmpty(message) {
 }
 
 function renderLocalStoreNotice() {
-  const recovery = state.localStoreInfo.recovery;
-  els.localStoreNotice.classList.toggle("hidden", !recovery);
+  const notice = localStoreNoticeView(state.localStoreInfo);
+  els.localStoreNotice.classList.toggle("hidden", !notice.visible);
+  els.localStoreNoticeTitle.textContent = notice.title;
   els.localStoreNoticeBody.replaceChildren();
-  if (!recovery) return;
+  if (!notice.visible) return;
 
   els.localStoreNoticeBody.replaceChildren(
-    storeNoticeRow("Active store", state.localStoreInfo.storePath || "Unknown"),
-    storeNoticeRow("Preserved data", recovery.preservedPath || "Unavailable"),
-    storeNoticeRow("Recovery issue", recovery.error || "Could not load local GTD store safely")
+    ...notice.rows.map(([label, value]) => storeNoticeRow(label, value))
   );
 }
 
@@ -1750,14 +1783,6 @@ function roamPageUrl(pageTitle, pageUid) {
 
 function roamBlockUrl(uid) {
   return `roam://#/app/${encodeURIComponent(activeGraphName())}/page/${encodeURIComponent(uid)}`;
-}
-
-function activeGraph() {
-  return state.graphs.find((graph) => graph.nickname === state.graph || graph.name === state.graph);
-}
-
-function canWrite() {
-  return activeGraph()?.accessLevel !== "read-only";
 }
 
 function todayIso() {
