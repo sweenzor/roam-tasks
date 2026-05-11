@@ -1,6 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
+
+test("browser entrypoint parses before boot", async () => {
+  const scriptPath = fileURLToPath(new URL("../public/app.js", import.meta.url));
+
+  await assert.doesNotReject(
+    execFileAsync(process.execPath, ["--check", scriptPath]),
+    "public/app.js should remain parseable so the renderer can boot"
+  );
+});
 
 test("quick-add form creates local sandbox tasks", async () => {
   const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");

@@ -6,7 +6,6 @@ import {
   getGtdCounts,
   gtdViewIds,
   gtdStatusLabels,
-  gtdViewIds,
   isDailyNoteTitle,
   isRoamDateTitle,
   projectName,
