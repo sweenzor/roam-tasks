@@ -5,18 +5,18 @@ import { badRequest, notFound, serviceUnavailable } from "./http-errors.mjs";
 
 export const defaultRoamApiHost = process.env.ROAM_LOCAL_API_HOST || "127.0.0.1";
 
-const defaultGraphKey = process.env.ROAM_DEFAULT_GRAPH;
 const expectedApiVersion = "1.1.2";
 
 export async function roamCall(graph, action, args = [], context = {}) {
   const port = await (context.getRoamPort || getRoamPort)();
   const host = context.roamApiHost || defaultRoamApiHost;
+  const fetchImpl = context.fetch || fetch;
   const params = graph.type === "offline" ? "?type=offline" : "";
   const url = `http://${host}:${port}/api/${encodeURIComponent(graph.name)}${params}`;
 
   let response;
   try {
-    response = await fetch(url, {
+    response = await fetchImpl(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -49,9 +49,10 @@ export async function roamCall(graph, action, args = [], context = {}) {
 export async function getTokenInfo(graph, context = {}) {
   const port = await (context.getRoamPort || getRoamPort)();
   const host = context.roamApiHost || defaultRoamApiHost;
+  const fetchImpl = context.fetch || fetch;
 
   try {
-    const response = await fetch(`http://${host}:${port}/api/graphs/tokens/info`, {
+    const response = await fetchImpl(`http://${host}:${port}/api/graphs/tokens/info`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -76,9 +77,12 @@ export async function getTokenInfo(graph, context = {}) {
   }
 }
 
-export async function getConfiguredGraphs() {
-  const envGraph = readEnvGraph();
-  const fileConfig = await readJson(join(homedir(), ".roam-tools.json"));
+export async function getConfiguredGraphs(options = {}) {
+  const env = options.env || process.env;
+  const homeDir = options.homeDir || homedir();
+  const readJsonFile = options.readJsonFile || readJson;
+  const envGraph = readEnvGraph(env);
+  const fileConfig = await readJsonFile(join(homeDir, ".roam-tools.json"));
   const fileGraphs = Array.isArray(fileConfig?.graphs) ? fileConfig.graphs : [];
   const graphs = [...fileGraphs, ...(envGraph ? [envGraph] : [])]
     .filter((graph) => graph?.name && graph?.token)
@@ -109,7 +113,7 @@ export async function resolveGraph(context, key) {
   return graph;
 }
 
-export function selectDefaultGraph(graphs) {
+export function selectDefaultGraph(graphs, defaultGraphKey = process.env.ROAM_DEFAULT_GRAPH) {
   if (!graphs.length) return null;
   if (!defaultGraphKey) return graphs.find((graph) => !isRoamHelpGraph(graph)) || graphs[0];
   return (
@@ -127,20 +131,23 @@ export function sanitizeGraph(graph) {
   };
 }
 
-export async function getRoamPort() {
-  if (process.env.ROAM_LOCAL_API_PORT) return Number(process.env.ROAM_LOCAL_API_PORT);
-  const config = await readJson(join(homedir(), ".roam-local-api.json"));
+export async function getRoamPort(options = {}) {
+  const env = options.env || process.env;
+  if (env.ROAM_LOCAL_API_PORT) return Number(env.ROAM_LOCAL_API_PORT);
+  const homeDir = options.homeDir || homedir();
+  const readJsonFile = options.readJsonFile || readJson;
+  const config = await readJsonFile(join(homeDir, ".roam-local-api.json"));
   return Number(config?.port) || 3333;
 }
 
-function readEnvGraph() {
-  if (!process.env.ROAM_GRAPH || !process.env.ROAM_LOCAL_API_TOKEN) return null;
+function readEnvGraph(env = process.env) {
+  if (!env.ROAM_GRAPH || !env.ROAM_LOCAL_API_TOKEN) return null;
   return {
-    name: process.env.ROAM_GRAPH,
-    nickname: process.env.ROAM_GRAPH_NICKNAME || "env",
-    type: process.env.ROAM_GRAPH_TYPE || "hosted",
-    token: process.env.ROAM_LOCAL_API_TOKEN,
-    accessLevel: process.env.ROAM_ACCESS_LEVEL
+    name: env.ROAM_GRAPH,
+    nickname: env.ROAM_GRAPH_NICKNAME || "env",
+    type: env.ROAM_GRAPH_TYPE || "hosted",
+    token: env.ROAM_LOCAL_API_TOKEN,
+    accessLevel: env.ROAM_ACCESS_LEVEL
   };
 }
 
