@@ -52,13 +52,13 @@ test("renderer surfaces local JSON store recovery diagnostics", async () => {
   const script = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
 
   assert.match(html, /id="localStoreNotice"/);
+  assert.match(html, /id="localStoreNoticeTitle"/);
   assert.match(html, /id="localStoreNoticeBody"/);
-  assert.match(script, /localStoreInfo: \{ storePath: "", recovery: null \}/);
+  assert.match(script, /localStoreInfo: \{ storePath: "", recovery: null, degraded: null \}/);
   assert.match(script, /state\.localStoreInfo = normalizeLocalStoreInfo\(response\)/);
   assert.match(script, /function renderLocalStoreNotice\(\)/);
-  assert.match(script, /storeNoticeRow\("Active store"/);
-  assert.match(script, /storeNoticeRow\("Preserved data"/);
-  assert.match(script, /storeNoticeRow\("Recovery issue"/);
+  assert.match(script, /localStoreNoticeView\(state\.localStoreInfo\)/);
+  assert.match(script, /storeNoticeRow\(label, value\)/);
 });
 
 test("renderer only requests completed tasks for views that need them", async () => {

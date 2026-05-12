@@ -15,6 +15,123 @@ const writableGraph = {
   accessLevel: "full"
 };
 
+test("graphs endpoint returns only non-secret graph metadata and connection settings", async () => {
+  const handler = appHandler({
+    graphs: [
+      writableGraph,
+      {
+        name: "other",
+        nickname: "other",
+        type: "offline",
+        token: "other-token",
+        accessLevel: "read"
+      }
+    ],
+    roamApiHost: "host.docker.internal",
+    roamPort: 4444
+  });
+
+  const response = await invoke(handler, {
+    method: "GET",
+    url: "/api/graphs"
+  });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.json, {
+    graphs: [
+      { name: "demo", nickname: "demo", type: "hosted", accessLevel: "full" },
+      { name: "other", nickname: "other", type: "offline", accessLevel: "read" }
+    ],
+    selectedGraph: "demo",
+    port: 4444,
+    roamApiHost: "host.docker.internal"
+  });
+  assert.equal(JSON.stringify(response.json).includes("token"), false);
+});
+
+test("health endpoint resolves graph token status without exposing graph tokens", async () => {
+  let tokenGraph;
+  const handler = appHandler({
+    getTokenInfo: async (graph) => {
+      tokenGraph = graph;
+      return {
+        status: "active",
+        graphName: graph.name,
+        graphType: graph.type,
+        grantedAccessLevel: "full",
+        grantedScopes: ["q"]
+      };
+    }
+  });
+
+  const response = await invoke(handler, {
+    method: "GET",
+    url: "/api/health?graph=demo"
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(tokenGraph.token, "test-token");
+  assert.deepEqual(response.json.graph, {
+    name: "demo",
+    nickname: "demo",
+    type: "hosted",
+    accessLevel: "full"
+  });
+  assert.deepEqual(response.json.token, {
+    status: "active",
+    graphName: "demo",
+    graphType: "hosted",
+    grantedAccessLevel: "full",
+    grantedScopes: ["q"]
+  });
+  assert.equal(JSON.stringify(response.json).includes("test-token"), false);
+});
+
+test("open endpoint routes to Roam page or block actions and validates target", async () => {
+  const calls = [];
+  const handler = appHandler({
+    roamCall: async (graph, action, args) => {
+      calls.push({ graph: graph.nickname, action, args });
+      return { success: true, result: {} };
+    }
+  });
+
+  const block = await invoke(handler, {
+    method: "POST",
+    url: "/api/open",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ graph: "demo", uid: "abc123" })
+  });
+  const page = await invoke(handler, {
+    method: "POST",
+    url: "/api/open",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ graph: "demo", title: "Project A" })
+  });
+  const missing = await invoke(handler, {
+    method: "POST",
+    url: "/api/open",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ graph: "demo" })
+  });
+
+  assert.equal(block.status, 200);
+  assert.equal(page.status, 200);
+  assert.equal(missing.status, 400);
+  assert.deepEqual(calls, [
+    {
+      graph: "demo",
+      action: "ui.mainWindow.openBlock",
+      args: [{ block: { uid: "abc123" } }]
+    },
+    {
+      graph: "demo",
+      action: "ui.mainWindow.openPage",
+      args: [{ page: { title: "Project A" } }]
+    }
+  ]);
+});
+
 test("rejects cross-origin write requests before calling Roam", async () => {
   let calls = 0;
   const handler = appHandler({
@@ -209,41 +326,38 @@ test("local GTD state reports structurally invalid fragments without losing vali
   }
 });
 
-test("patch reads the current Roam block before updating", async () => {
-  const actions = [];
-  let updatedString = "";
+test("Roam task data mutations are not exposed by the local-first API", async () => {
+  let calls = 0;
   const handler = appHandler({
-    roamCall: async (_graph, action, args) => {
-      actions.push(action);
-      if (action === "q") {
-        return {
-          success: true,
-          result: [["{{[[TODO]]}} Current copy [[New Page]]"]]
-        };
-      }
-      if (action === "data.block.update") {
-        updatedString = args[0].block.string;
-        return { success: true, result: {} };
-      }
+    roamCall: async () => {
+      calls += 1;
       return { success: true, result: {} };
     }
   });
 
-  const response = await invoke(handler, {
+  const createResponse = await invoke(handler, {
+    method: "POST",
+    url: "/api/tasks",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ graph: "demo", text: "Write back to Roam" })
+  });
+  const updateResponse = await invoke(handler, {
     method: "PATCH",
     url: "/api/tasks/abc123",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      graph: "demo",
-      raw: "{{[[TODO]]}} Stale copy",
-      done: true,
-      pageTitle: "Projects"
-    })
+    body: JSON.stringify({ graph: "demo", done: true })
+  });
+  const deleteResponse = await invoke(handler, {
+    method: "DELETE",
+    url: "/api/tasks/abc123",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ graph: "demo" })
   });
 
-  assert.equal(response.status, 200);
-  assert.deepEqual(actions, ["q", "data.block.update"]);
-  assert.equal(updatedString, "{{[[DONE]]}} Current copy [[New Page]]");
+  assert.equal(createResponse.status, 404);
+  assert.equal(updateResponse.status, 404);
+  assert.equal(deleteResponse.status, 404);
+  assert.equal(calls, 0);
 });
 
 test("tasks endpoint only fetches completed statuses when requested", async () => {
@@ -320,9 +434,10 @@ test("tasks endpoint includes direct child bullets as task details", async () =>
 function appHandler(options = {}) {
   return createAppHandler({
     getConfiguredGraphs: async () => options.graphs || [writableGraph],
-    getRoamPort: async () => 3333,
-    getTokenInfo: async () => ({ status: "active" }),
+    getRoamPort: async () => options.roamPort || 3333,
+    getTokenInfo: options.getTokenInfo || (async () => ({ status: "active" })),
     localStore: options.localStore,
+    roamApiHost: options.roamApiHost,
     roamCall: options.roamCall || (async () => ({ success: true, result: {} }))
   });
 }

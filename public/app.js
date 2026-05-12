@@ -25,7 +25,20 @@ import {
   taskIdsForKeyboardTriage,
   triageChangesForBucket
 } from "./keyboard-triage.js";
+import { degradedLocalStoreInfo, localStoreNoticeView, normalizeGraphLoadResult } from "./app-view-model.js";
+import { api } from "./api-client.js";
 import { createLocalStoreSaveQueue } from "./local-store-save-queue.js";
+import {
+  hasLocalStoreData,
+  normalizeLocalStore,
+  normalizeLocalStoreInfo
+} from "./local-store-model.js";
+import { escapeHtml, renderInlineMarkdown, renderPathChipText } from "./markdown-renderer.js";
+import {
+  roamBlockUrl as buildRoamBlockUrl,
+  roamPageUrl as buildRoamPageUrl,
+  setRoamLinkTarget
+} from "./roam-links.js";
 import { timestampIso } from "./task-view-model.js";
 import { loadStoredUiState, storageKeys } from "./ui-storage.js";
 
@@ -46,7 +59,7 @@ const state = {
   showCompleted: storedUiState.showCompleted,
   includeDoneLoaded: false,
   loading: false,
-  localStoreInfo: { storePath: "", recovery: null },
+  localStoreInfo: { storePath: "", recovery: null, degraded: null },
   pendingRemovals: new Map(),
   selectedTaskIds: new Set(),
   visibleTaskIds: new Set(),
@@ -88,6 +101,7 @@ const els = {
   bulkApplyButton: document.querySelector("#bulkApplyButton"),
   bulkClearButton: document.querySelector("#bulkClearButton"),
   localStoreNotice: document.querySelector("#localStoreNotice"),
+  localStoreNoticeTitle: document.querySelector("#localStoreNoticeTitle"),
   localStoreNoticeBody: document.querySelector("#localStoreNoticeBody"),
   refreshButton: document.querySelector("#refreshButton"),
   taskList: document.querySelector("#taskList"),
@@ -110,6 +124,30 @@ const taskDragMimeType = "application/x-roam-task-ids";
 state.tasks = effectiveTasks();
 
 boot();
+
+function roamContext() {
+  return {
+    graph: state.graph,
+    graphs: state.graphs
+  };
+}
+
+function roamPageUrl(pageTitle, pageUid) {
+  return buildRoamPageUrl(pageTitle, pageUid, roamContext());
+}
+
+function roamBlockUrl(uid) {
+  return buildRoamBlockUrl(uid, roamContext());
+}
+
+function renderTaskTitle(markdown, pageUids, blockStrings) {
+  return renderInlineMarkdown(markdown, {
+    blockStrings,
+    pageUids,
+    roamBlockUrl,
+    roamPageUrl
+  });
+}
 
 async function boot() {
   bindEvents();
@@ -536,13 +574,14 @@ async function loadGraphs() {
   setStatus("Loading", true);
   try {
     const data = await api("/api/graphs");
-    state.graphs = data.graphs || [];
-    state.graph = data.selectedGraph;
+    const graphLoad = normalizeGraphLoadResult(data);
+    state.graphs = graphLoad.graphs;
+    state.graph = graphLoad.selectedGraph;
 
-    els.setupPanel.classList.add("hidden");
+    els.setupPanel.classList.toggle("hidden", !graphLoad.showSetup);
     setStatus();
   } catch (error) {
-    els.setupPanel.classList.add("hidden");
+    els.setupPanel.classList.remove("hidden");
     setStatus(error.message, false, true);
   }
 }
@@ -751,7 +790,7 @@ function renderTask(task) {
   });
 
   const title = node.querySelector(".task-title");
-  title.innerHTML = renderInlineMarkdown(task.text, task.pageUids || {}, task.blockStrings || {});
+  title.innerHTML = renderTaskTitle(task.text, task.pageUids || {}, task.blockStrings || {});
   title.classList.toggle("editable", !pendingRemoval);
   title.title = pendingRemoval ? "" : "Double-click to edit task";
   title.addEventListener("dblclick", (event) => {
@@ -1322,7 +1361,12 @@ async function loadLocalStore() {
     } else {
       clearLegacyLocalStore();
     }
-  } catch {
+  } catch (error) {
+    state.localStoreInfo = {
+      storePath: "",
+      recovery: null,
+      degraded: degradedLocalStoreInfo(error)
+    };
     state.localTasks = legacyStore.localTasks;
     state.localState = legacyStore.localState;
     state.tasks = effectiveTasks();
@@ -1348,9 +1392,24 @@ async function saveLocalStoreSnapshot(snapshot) {
       body: snapshot
     });
     clearLegacyLocalStore();
+    state.localStoreInfo = {
+      ...state.localStoreInfo,
+      degraded: null
+    };
+    renderLocalStoreNotice();
     return true;
-  } catch {
-    writeLegacyLocalStore(snapshot);
+  } catch (error) {
+    let fallbackError = "";
+    try {
+      writeLegacyLocalStore(snapshot);
+    } catch (storageError) {
+      fallbackError = storageError;
+    }
+    state.localStoreInfo = {
+      ...state.localStoreInfo,
+      degraded: degradedLocalStoreInfo(error, { fallbackError })
+    };
+    renderLocalStoreNotice();
     return false;
   }
 }
@@ -1360,45 +1419,6 @@ function snapshotLocalStore() {
     localTasks: state.localTasks,
     localState: state.localState
   };
-}
-
-function normalizeLocalStore(data = {}) {
-  return {
-    localTasks: Array.isArray(data.localTasks) ? data.localTasks : [],
-    localState: normalizeLocalState(data.localState)
-  };
-}
-
-function normalizeLocalStoreInfo(data = {}) {
-  return {
-    storePath: typeof data.storePath === "string" ? data.storePath : "",
-    recovery: normalizeLocalStoreRecovery(data.recovery)
-  };
-}
-
-function normalizeLocalStoreRecovery(recovery) {
-  if (!recovery || typeof recovery !== "object" || Array.isArray(recovery)) return null;
-  return {
-    error: stringValue(recovery.error),
-    errorName: stringValue(recovery.errorName),
-    preservedPath: stringValue(recovery.preservedPath),
-    recoveredAt: stringValue(recovery.recoveredAt)
-  };
-}
-
-function stringValue(value) {
-  return typeof value === "string" ? value : "";
-}
-
-function hasLocalStoreData(store) {
-  return store.localTasks.length > 0 || Object.keys(store.localState).length > 0;
-}
-
-function normalizeLocalState(localState) {
-  if (!localState || typeof localState !== "object" || Array.isArray(localState)) return {};
-  return Object.fromEntries(
-    Object.entries(localState).filter(([, value]) => value && typeof value === "object" && !Array.isArray(value))
-  );
 }
 
 function readLegacyLocalStore() {
@@ -1687,15 +1707,14 @@ function renderEmpty(message) {
 }
 
 function renderLocalStoreNotice() {
-  const recovery = state.localStoreInfo.recovery;
-  els.localStoreNotice.classList.toggle("hidden", !recovery);
+  const notice = localStoreNoticeView(state.localStoreInfo);
+  els.localStoreNotice.classList.toggle("hidden", !notice.visible);
+  els.localStoreNoticeTitle.textContent = notice.title;
   els.localStoreNoticeBody.replaceChildren();
-  if (!recovery) return;
+  if (!notice.visible) return;
 
   els.localStoreNoticeBody.replaceChildren(
-    storeNoticeRow("Active store", state.localStoreInfo.storePath || "Unknown"),
-    storeNoticeRow("Preserved data", recovery.preservedPath || "Unavailable"),
-    storeNoticeRow("Recovery issue", recovery.error || "Could not load local GTD store safely")
+    ...notice.rows.map(([label, value]) => storeNoticeRow(label, value))
   );
 }
 
@@ -1716,48 +1735,6 @@ function setStatus(message = "", busy = false, isError = false) {
   els.refreshButton.setAttribute("aria-label", isError ? `${label}. ${message}` : label);
   els.refreshButton.classList.toggle("busy", busy);
   els.refreshButton.classList.toggle("error", isError);
-}
-
-async function api(path, options = {}) {
-  const controller = options.timeoutMs ? new AbortController() : null;
-  const timeout = controller
-    ? setTimeout(() => controller.abort(), options.timeoutMs)
-    : null;
-
-  const response = await fetch(path, {
-    method: options.method || "GET",
-    headers: options.body ? { "Content-Type": "application/json" } : undefined,
-    body: options.body ? JSON.stringify(options.body) : undefined,
-    signal: controller?.signal
-  }).catch((error) => {
-    if (error.name === "AbortError") throw new Error("Roam refresh timed out");
-    throw error;
-  }).finally(() => {
-    if (timeout) clearTimeout(timeout);
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || "Request failed");
-  return data;
-}
-
-function activeGraphName() {
-  return state.graphs.find((graph) => graph.nickname === state.graph)?.name || state.graph || "";
-}
-
-function roamPageUrl(pageTitle, pageUid) {
-  return roamBlockUrl(pageUid || pageTitle);
-}
-
-function roamBlockUrl(uid) {
-  return `roam://#/app/${encodeURIComponent(activeGraphName())}/page/${encodeURIComponent(uid)}`;
-}
-
-function activeGraph() {
-  return state.graphs.find((graph) => graph.nickname === state.graph || graph.name === state.graph);
-}
-
-function canWrite() {
-  return activeGraph()?.accessLevel !== "read-only";
 }
 
 function todayIso() {
@@ -1788,141 +1765,6 @@ function formatDue(isoDate) {
     day: "numeric",
     year: year === new Date().getFullYear() ? undefined : "numeric"
   }).format(new Date(year, month - 1, day));
-}
-
-function renderInlineMarkdown(markdown, pageUids = {}, blockStrings = {}) {
-  const placeholders = [];
-  const stash = (html) => {
-    const token = `@@RTTOKEN${placeholders.length}@@`;
-    placeholders.push(html);
-    return token;
-  };
-
-  let source = String(markdown || "");
-
-  source = source.replace(/`([^`]+)`/g, (_, code) => stash(`<code>${escapeHtml(code)}</code>`));
-
-  source = source.replace(/\[([^\]\n]+)\]\(([^)\n]+)\)/g, (_, label, href) => {
-    return stash(renderMarkdownLink(label, href, pageUids));
-  });
-
-  source = source.replace(/#\[\[([^\]\n]+)\]\]/g, (_, pageTitle) => {
-    return stash(renderRoamPageLink(pageTitle, `#${pageTitle}`, pageUids));
-  });
-
-  source = source.replace(/\[\[([^\]\n]+)\]\]/g, (_, pageTitle) => {
-    return stash(renderRoamPageLink(pageTitle, pageTitle, pageUids));
-  });
-
-  source = source.replace(/\(\(([A-Za-z0-9_-]+)\)\)/g, (_, uid) => {
-    const label = blockStrings[uid] ? cleanRoamInlineText(blockStrings[uid]) : `(${uid})`;
-    return stash(
-      `<a class="roam-page-link" href="${escapeAttribute(roamBlockUrl(uid))}" data-roam-uid="${escapeAttribute(uid)}" title="Open block in Roam">${escapeHtml(label || `(${uid})`)}</a>`
-    );
-  });
-
-  source = source.replace(/(^|[\s(])#([A-Za-z0-9_/-]+)/g, (match, prefix, tag) => {
-    return `${prefix}${stash(renderRoamPageLink(tag, `#${tag}`, pageUids))}`;
-  });
-
-  let html = escapeHtml(source);
-  html = html
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/__([^_]+)__/g, "<strong>$1</strong>")
-    .replace(/~~([^~]+)~~/g, "<del>$1</del>")
-    .replace(/\*([^*\s][^*]*?)\*/g, "<em>$1</em>")
-    .replace(/_([^_\s][^_]*?)_/g, "<em>$1</em>");
-
-  placeholders.forEach((replacement, index) => {
-    html = html.replaceAll(`@@RTTOKEN${index}@@`, replacement);
-  });
-
-  return html;
-}
-
-function renderMarkdownLink(label, href, pageUids = {}) {
-  const trimmedHref = String(href || "").trim();
-  const pageMatch = trimmedHref.match(/^\[\[([^\]]+)\]\]$/);
-  if (pageMatch) return renderRoamPageLink(pageMatch[1], label, pageUids);
-
-  const safeHref = safeLinkHref(trimmedHref);
-  if (!safeHref) return escapeHtml(label);
-
-  const external = /^https?:/i.test(safeHref);
-  const target = external ? ' target="_blank" rel="noreferrer"' : "";
-  return `<a href="${escapeAttribute(safeHref)}"${target}>${escapeHtml(label)}</a>`;
-}
-
-function renderRoamPageLink(pageTitle, label, pageUids = {}) {
-  const pageUid = pageUids[pageTitle];
-  const targetAttribute = pageUid
-    ? `data-roam-uid="${escapeAttribute(pageUid)}"`
-    : `data-roam-title="${escapeAttribute(pageTitle)}"`;
-  return `<a class="roam-page-link" href="${escapeAttribute(roamPageUrl(pageTitle, pageUid))}" ${targetAttribute} title="Open ${escapeAttribute(pageTitle)} in Roam">${escapeHtml(label)}</a>`;
-}
-
-function setRoamLinkTarget(node, pageTitle, pageUid) {
-  if (pageUid) {
-    node.dataset.roamUid = pageUid;
-    delete node.dataset.roamTitle;
-    return;
-  }
-  node.dataset.roamTitle = pageTitle;
-  delete node.dataset.roamUid;
-}
-
-function safeLinkHref(href) {
-  if (/^(https?:|mailto:|roam:\/\/)/i.test(href)) return href;
-  if (href.startsWith("#")) return href;
-  return "";
-}
-
-function renderPathChipText(value = "") {
-  const placeholders = [];
-  const stash = (html) => {
-    const token = `@@RTPATHTOKEN${placeholders.length}@@`;
-    placeholders.push(html);
-    return token;
-  };
-  const boldPageLink = (label) => stash(`<strong class="path-page-link">${escapeHtml(label)}</strong>`);
-
-  let source = String(value);
-  source = source
-    .replace(/\{\{\s*\[\[(?:TODO|DONE|Abandoned)\]\]\s*\}\}/gi, "")
-    .replace(/\{\{\s*(?:TODO|DONE|Abandoned)\s*\}\}/gi, "")
-    .replace(/\[([^\]\n]+)\]\(\[\[([^\]\n]+)\]\]\)/g, (_, label) => boldPageLink(label))
-    .replace(/\[([^\]\n]+)\]\(([^)\n]+)\)/g, "$1")
-    .replace(/#\[\[([^\]\n]+)\]\]/g, (_, pageTitle) => boldPageLink(`#${pageTitle}`))
-    .replace(/\[\[([^\]\n]+)\]\]/g, (_, pageTitle) => boldPageLink(pageTitle))
-    .replace(/(^|[\s(])#([A-Za-z0-9_/-]+)/g, (_, prefix, tag) => {
-      return `${prefix}${boldPageLink(`#${tag}`)}`;
-    })
-    .replace(/\*\*([^*]+)\*\*/g, "$1")
-    .replace(/__([^_]+)__/g, "$1")
-    .replace(/~~([^~]+)~~/g, "$1")
-    .replace(/`([^`]+)`/g, "$1")
-    .replace(/^\s*[-*]\s+/, "")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  let html = escapeHtml(source);
-  placeholders.forEach((replacement, index) => {
-    html = html.replaceAll(`@@RTPATHTOKEN${index}@@`, replacement);
-  });
-  return html;
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function escapeAttribute(value) {
-  return escapeHtml(value).replace(/`/g, "&#96;");
 }
 
 const viewTitles = {
