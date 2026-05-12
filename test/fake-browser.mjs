@@ -7,19 +7,18 @@ export function installFakeBrowser({ fetch }) {
     roamTasks: globalThis.roamTasks
   };
   const document = createFakeDocument();
+  const window = createFakeWindow();
 
   globalThis.document = document;
   globalThis.localStorage = createMemoryStorage();
-  globalThis.window = {
-    addEventListener() {},
-    clearTimeout,
-    location: { href: "" },
-    setTimeout
-  };
+  globalThis.window = window;
   globalThis.fetch = fetch;
 
   return {
+    document,
     ids: document.ids,
+    viewButtons: document.viewButtons,
+    window,
     restore() {
       for (const [key, value] of Object.entries(previous)) {
         if (value === undefined) {
@@ -67,16 +66,23 @@ function createFakeDocument() {
     });
 
   ids.taskTemplate.content = {
-    firstElementChild: new FakeElement("div")
+    firstElementChild: createTaskTemplateRow()
   };
 
   return {
     activeElement: body,
     body,
     ids,
-    addEventListener() {},
+    listeners: new Map(),
+    viewButtons,
+    addEventListener(type, handler) {
+      addListener(this.listeners, type, handler);
+    },
     createElement(tag) {
       return new FakeElement(tag);
+    },
+    async dispatchEvent(type, event = {}) {
+      return dispatchListeners(this.listeners, type, this, event);
     },
     elementFromPoint() {
       return null;
@@ -97,6 +103,49 @@ function createFakeDocument() {
       return [];
     }
   };
+}
+
+function createFakeWindow() {
+  let timerId = 0;
+  const timers = new Map();
+  return {
+    listeners: new Map(),
+    location: { href: "" },
+    addEventListener(type, handler) {
+      addListener(this.listeners, type, handler);
+    },
+    clearTimeout(id) {
+      timers.delete(id);
+    },
+    async dispatchEvent(type, event = {}) {
+      return dispatchListeners(this.listeners, type, this, event);
+    },
+    setTimeout(callback) {
+      timerId += 1;
+      timers.set(timerId, callback);
+      return timerId;
+    }
+  };
+}
+
+function createTaskTemplateRow() {
+  const row = new FakeElement("div");
+  row.className = "task-row";
+  row.append(
+    classedElement("button", "check-button"),
+    classedElement("span", "task-title"),
+    classedElement("input", "edit-input hidden"),
+    classedElement("div", "task-meta"),
+    classedElement("a", "open-link"),
+    classedElement("button", "delete-button")
+  );
+  return row;
+}
+
+function classedElement(tagName, className) {
+  const element = new FakeElement(tagName);
+  element.className = className;
+  return element;
 }
 
 const elementIds = [
@@ -196,8 +245,7 @@ class FakeElement {
   }
 
   addEventListener(type, handler) {
-    if (!this.listeners.has(type)) this.listeners.set(type, []);
-    this.listeners.get(type).push(handler);
+    addListener(this.listeners, type, handler);
   }
 
   append(...nodes) {
@@ -209,10 +257,22 @@ class FakeElement {
     }
   }
 
-  cloneNode() {
+  cloneNode(deep = false) {
     const clone = new FakeElement(this.tagName.toLowerCase(), this.id);
+    clone.attributes = { ...this.attributes };
     clone.className = this.className;
+    clone.checked = this.checked;
     clone.dataset = { ...this.dataset };
+    clone.disabled = this.disabled;
+    clone.href = this.href;
+    clone.title = this.title;
+    clone.type = this.type;
+    clone.value = this.value;
+    clone._innerHTML = this._innerHTML;
+    clone._textContent = this._textContent;
+    if (deep) {
+      for (const child of this.children) clone.append(child.cloneNode(true));
+    }
     return clone;
   }
 
@@ -225,7 +285,13 @@ class FakeElement {
     return null;
   }
 
-  focus() {}
+  focus() {
+    if (globalThis.document) globalThis.document.activeElement = this;
+  }
+
+  async dispatchEvent(type, event = {}) {
+    return dispatchListeners(this.listeners, type, this, event);
+  }
 
   matches(selector) {
     return selector.split(",").some((part) => this.matchesOne(part.trim()));
@@ -278,7 +344,33 @@ class FakeElement {
     this.attributes[name] = String(value);
   }
 
+  getAttribute(name) {
+    return this.attributes[name];
+  }
+
   setSelectionRange() {}
+}
+
+function addListener(listeners, type, handler) {
+  if (!listeners.has(type)) listeners.set(type, []);
+  listeners.get(type).push(handler);
+}
+
+async function dispatchListeners(listeners, type, currentTarget, event = {}) {
+  const dispatched = {
+    currentTarget,
+    defaultPrevented: false,
+    target: currentTarget,
+    preventDefault() {
+      this.defaultPrevented = true;
+    },
+    stopPropagation() {},
+    ...event
+  };
+  for (const handler of listeners.get(type) || []) {
+    await handler(dispatched);
+  }
+  return !dispatched.defaultPrevented;
 }
 
 class FakeClassList {
